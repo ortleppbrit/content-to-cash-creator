@@ -43,8 +43,10 @@
 
     async function callAPI(system, prompt, max_tokens = 8000) {
       const res = await fetch("/api/generate", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ system, prompt, max_tokens }) });
+      if (!res.ok) { const t = await res.text(); throw new Error("Server-Fehler: " + res.status); }
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      if (!data.text) throw new Error("Keine Antwort vom Server erhalten.");
       return data.text;
     }
 
@@ -185,31 +187,45 @@
         React.createElement("div",{style:{maxWidth:800,margin:"0 auto",padding:"24px 16px 80px"}},
           // HOME
           view==="home"&&React.createElement("div",null,
-            React.createElement("div",{style:{textAlign:"center",padding:"16px 0 28px"}},
+            React.createElement("div",{style:{textAlign:"center",padding:"16px 0 24px"}},
               React.createElement("div",{style:{color:"#E94D60",fontSize:11,letterSpacing:3,textTransform:"uppercase",marginBottom:8}},"Powered by Brit Ortlepp"),
               React.createElement("h1",{style:{fontSize:26,fontWeight:900,margin:"0 0 8px",lineHeight:1.2}},"Content to Cash ",React.createElement("span",{style:{color:"#E94D60"}},"Creator")),
-              React.createElement("p",{style:{color:"#E7DFD7",fontSize:13,maxWidth:440,margin:"0 auto",lineHeight:1.7}},"KI-Tool für Leadership-Content, der verkauft.")
+              React.createElement("p",{style:{color:"#E7DFD7",fontSize:13,maxWidth:440,margin:"0 auto",lineHeight:1.7}},"Dein KI-Tool für Leadership-Content nach dem 3x3 Content to Cash Code.")
             ),
-            !profileComplete&&React.createElement("div",{style:{background:"#2a1a1e",border:"1px solid #E94D60",borderRadius:14,padding:"16px 20px",marginBottom:16}},
-              React.createElement("div",{style:{fontWeight:700,marginBottom:4}},"⚡ Einmaliges Setup nötig"),
-              React.createElement("div",{style:{color:"#E7DFD7",fontSize:13,lineHeight:1.6,marginBottom:12}},"Lege dein Profil einmalig an."),
-              React.createElement("button",{onClick:()=>setView("profile"),style:S.primary},"Profil anlegen →")
+
+            // FORTSCHRITTS-ANZEIGE
+            React.createElement("div",{style:{background:"#2a2a2a",borderRadius:14,padding:"20px",marginBottom:20,border:"1px solid #383838"}},
+              React.createElement("div",{style:{color:"#E7DFD7",fontSize:11,letterSpacing:2,textTransform:"uppercase",marginBottom:16,fontWeight:700}},"🗺️ Dein Weg zum Content"),
+              [
+                {step:1, icon:"👤", title:"Profil anlegen", desc:"Nische, Traumkundin, Angebote & Voice – einmalig", done:profileComplete, action:()=>setView("profile")},
+                {step:2, icon:"✨", title:"Content erstellen", desc:"Einstellungen wählen & Content generieren", done:false, action:()=>profileComplete?setView("generate"):null, locked:!profileComplete},
+                {step:3, icon:"📋", title:"Content kopieren", desc:"Fertige Posts direkt nutzen oder anpassen", done:false, locked:true},
+              ].map((s,i)=>React.createElement("div",{key:i,style:{display:"flex",alignItems:"flex-start",gap:14,marginBottom:i<2?16:0}},
+                React.createElement("div",{style:{width:36,height:36,borderRadius:"50%",background:s.done?"#27ae60":s.locked?"#333":"#E94D60",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}},s.done?"✓":s.icon),
+                React.createElement("div",{style:{flex:1}},
+                  React.createElement("div",{style:{fontWeight:800,fontSize:14,color:s.locked&&!s.done?"#666":"#fff"}},s.step+". "+s.title),
+                  React.createElement("div",{style:{fontSize:12,color:"#888",marginTop:2}},s.desc),
+                  !s.locked&&!s.done&&React.createElement("button",{onClick:s.action,style:{...S.primary,marginTop:10,fontSize:13,padding:"10px 20px"}},s.step===1?"Profil anlegen →":"Content erstellen →"),
+                  s.done&&React.createElement("button",{onClick:()=>setView("profile"),style:{...S.secondary,marginTop:8,fontSize:12,padding:"8px 16px"}},"Profil bearbeiten")
+                )
+              ))
             ),
-            React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}},
-              React.createElement("div",{onClick:()=>profileComplete?setView("generate"):setView("profile"),style:{background:profileComplete?"#E94D60":"#2a2a2a",borderRadius:14,padding:"20px 18px",cursor:"pointer",border:"1px solid "+(profileComplete?"#E94D60":"#383838")}},
-                React.createElement("div",{style:{fontSize:28,marginBottom:8}},"✨"),
-                React.createElement("div",{style:{fontWeight:800,fontSize:15,marginBottom:4}},"Content erstellen"),
-                React.createElement("div",{style:{fontSize:12,color:profileComplete?"rgba(255,255,255,.8)":"#E7DFD7"}},"Plan für 1–4 Wochen")
-              ),
-              React.createElement("div",{onClick:()=>setView("profile"),style:{background:"#2a2a2a",borderRadius:14,padding:"20px 18px",cursor:"pointer",border:"1px solid #383838"}},
-                React.createElement("div",{style:{fontSize:28,marginBottom:8}},"👤"),
-                React.createElement("div",{style:{fontWeight:800,fontSize:15,marginBottom:4}},saved?"Profil bearbeiten":"Profil anlegen"),
-                React.createElement("div",{style:{fontSize:12,color:"#E7DFD7"}},"Nische, Traumkundin, Voice")
-              )
+
+            // ANLEITUNG
+            React.createElement("div",{style:{background:"#1a1a2a",border:"1px solid #517383",borderRadius:14,padding:"18px 20px",marginBottom:16}},
+              React.createElement("div",{style:{fontWeight:800,fontSize:14,marginBottom:12,color:"#ECEA54"}},"📖 So funktioniert das Tool"),
+              [
+                "1️⃣  Lege einmalig dein Profil an: Nische, Traumkundin auf 3 Ebenen, deine Angebote und deine Brand-Voice.",
+                "2️⃣  Wähle bei der Content-Erstellung: Zeitraum, Posts pro Woche, Content-Ziel und optional ein Schwerpunkt-Thema.",
+                "3️⃣  Das Tool erstellt dir einen kompletten Plan mit Hooks, Reels, Karussells, Captions und einer Bonus-Idee.",
+                "4️⃣  Kopiere den fertigen Content mit einem Klick und nutze ihn direkt auf Instagram.",
+                "💡  Tipp: Je detaillierter dein Profil, desto besser und spezifischer wird dein Content!"
+              ].map((t,i)=>React.createElement("div",{key:i,style:{fontSize:13,color:"#E7DFD7",lineHeight:1.8,marginBottom:4}},t))
             ),
-            saved&&React.createElement("div",{style:{background:"#2a2a2a",borderRadius:14,padding:"18px 20px"}},
-              React.createElement("div",{style:{color:"#E7DFD7",fontSize:11,letterSpacing:2,textTransform:"uppercase",marginBottom:10}},"Gespeichertes Profil"),
-              React.createElement("div",{style:{fontSize:13,lineHeight:2.1}},
+
+            saved&&React.createElement("div",{style:{background:"#2a2a2a",borderRadius:14,padding:"16px 20px"}},
+              React.createElement("div",{style:{color:"#E7DFD7",fontSize:11,letterSpacing:2,textTransform:"uppercase",marginBottom:10}},"Dein gespeichertes Profil"),
+              React.createElement("div",{style:{fontSize:13,lineHeight:2}},
                 React.createElement("b",null,"Nische: "),profile.branche,React.createElement("br"),
                 React.createElement("b",null,"Angebote: "),profile.angebote.map(a=>a.name).join(", ")||"–",React.createElement("br"),
                 React.createElement("b",null,"Voice: "),VOICES[profile.voice1]?.emoji," ",profile.voice1," + ",VOICES[profile.voice2]?.emoji," ",profile.voice2
