@@ -4,30 +4,538 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Content to Cash Creator – by Brit Ortlepp</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Montserrat', Arial, sans-serif; background: #1a1a1a; color: #fff; min-height: 100vh; }
+    body { font-family: 'Montserrat', Arial, sans-serif; background: #e6ded6; color: #1a1a1a; min-height: 100vh; }
     #root { min-height: 100vh; }
     .spinner { display: flex; justify-content: center; gap: 8px; margin-top: 24px; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; background: #E94D60; animation: pulse 1.2s ease-in-out infinite; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #4d7182; animation: pulse 1.2s ease-in-out infinite; }
     .dot:nth-child(2) { animation-delay: 0.4s; }
     .dot:nth-child(3) { animation-delay: 0.8s; }
     @keyframes pulse { 0%,100%{opacity:.3;transform:scale(.8)} 50%{opacity:1;transform:scale(1.2)} }
-    input, textarea, select { outline: none; }
-    button { outline: none; }
-    table { border-collapse: collapse; }
+    input, textarea, select, button { outline: none; font-family: inherit; }
     ::-webkit-scrollbar { width: 6px; }
-    ::-webkit-scrollbar-track { background: #222; }
-    ::-webkit-scrollbar-thumb { background: #E94D60; border-radius: 3px; }
+    ::-webkit-scrollbar-track { background: #e6ded6; }
+    ::-webkit-scrollbar-thumb { background: #4d7182; border-radius: 3px; }
   </style>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet" />
 </head>
 <body>
-  <div id="root"></div>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script type="text/babel">
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel">
+const { useState, useEffect, useCallback } = React;
+
+const COLORS = {
+  bg: "#e6ded6",
+  card: "#f5f0eb",
+  blue: "#4d7182",
+  blueDark: "#3a5566",
+  yellow: "#ebe955",
+  dark: "#1a1a1a",
+  mid: "#555",
+  border: "#d4c9be",
+  white: "#ffffff",
+};
+
+const LOGO = "https://raw.githubusercontent.com/ortleppbrit/content-to-cash-creator/main/Brit_negativ.png";
+const FOTO_RING = "https://raw.githubusercontent.com/ortleppbrit/content-to-cash-creator/main/BUS-Brit-428-ChristineSauer2025.jpg";
+const FOTO_GLAS = "https://raw.githubusercontent.com/ortleppbrit/content-to-cash-creator/main/BUS-Brit-457-ChristineSauer2025.jpg";
+const GOOGLE_CLIENT_ID = window.__GOOGLE_CLIENT_ID__ || "";
+
+const VOICES = {
+  Leader:    { emoji:"👑", kurz:"Klar, direkt, stark",          wording:"Aktive, präzise Sprache. Keine Modalverben. Haltung zeigen.", beispiel:"Du führst, indem du entscheidest." },
+  Mentorin:  { emoji:"🤍", kurz:"Warm, weise, vertrauensvoll",  wording:"Emotionale, ruhige Sprache. Tiefe Einblicke, persönliche Wärme.", beispiel:"Vertrauen ist der Beginn jeder Veränderung." },
+  Visionary: { emoji:"🚀", kurz:"Groß, inspirierend, bewegend", wording:"Bildhafte, große Sprache. Zukunftsorientiert, visionär.", beispiel:"Du erschaffst nicht Posts, du formst Gedanken." },
+  Connector: { emoji:"💬", kurz:"Nahbar, ehrlich, humorvoll",   wording:"Alltagssprache, locker, humorvoll. Schafft Nähe.", beispiel:"Ich sags ehrlich: Das hatte ich nicht erwartet." },
+  Rebell:    { emoji:"🔥", kurz:"Kantig, provokant, mutig",     wording:"Konfrontativ, mutig, kurz. Polarisiert bewusst.", beispiel:"Brav verkauft nicht." },
+};
+
+const S = {
+  primary:   { background: COLORS.yellow, color: COLORS.dark, border:"none", borderRadius:25, padding:"13px 26px", fontSize:13.5, fontWeight:800, cursor:"pointer", fontFamily:"inherit" },
+  secondary: { background: "transparent", color: COLORS.blue, border:`1px solid ${COLORS.blue}`, borderRadius:25, padding:"13px 22px", fontSize:13, cursor:"pointer", fontFamily:"inherit" },
+  ghost:     { background: "transparent", color: COLORS.blue, border:`1px solid ${COLORS.border}`, borderRadius:20, padding:"7px 14px", cursor:"pointer", fontFamily:"inherit", fontWeight:600 },
+  chip:      { borderRadius:22, padding:"9px 16px", fontSize:13, cursor:"pointer", fontFamily:"inherit", fontWeight:700 },
+};
+
+async function callAPI(prompt, max_tokens = 8000) {
+  const res = await fetch("/api/generate", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({ prompt, max_tokens }) });
+  if(!res.ok) throw new Error("Server-Fehler: " + res.status);
+  const data = await res.json();
+  if(data.error) throw new Error(data.error);
+  if(!data.text) throw new Error("Keine Antwort erhalten.");
+  return data.text;
+}
+
+function IN({value, onChange, ph, style={}}) {
+  return React.createElement("input", { value, onChange:e=>onChange(e.target.value), placeholder:ph, style:{width:"100%",background:COLORS.white,border:`1px solid ${COLORS.border}`,borderRadius:10,color:COLORS.dark,padding:"13px 15px",fontSize:13.5,fontFamily:"inherit",boxSizing:"border-box",...style}});
+}
+function TA({value, onChange, ph, rows=3}) {
+  return React.createElement("textarea", { value, onChange:e=>onChange(e.target.value), placeholder:ph, rows, style:{width:"100%",background:COLORS.white,border:`1px solid ${COLORS.border}`,borderRadius:10,color:COLORS.dark,padding:"13px 15px",fontSize:13.5,fontFamily:"inherit",boxSizing:"border-box",resize:"vertical",lineHeight:1.6}});
+}
+function Chip({children, active, onClick}) {
+  return React.createElement("button", { onClick, style:{...S.chip, background:active?COLORS.yellow:COLORS.white, color:active?COLORS.dark:COLORS.blue, border:`1px solid ${active?COLORS.yellow:COLORS.border}`, fontWeight:active?800:600}}, children);
+}
+function Grp({label, children, err}) {
+  return React.createElement("div", {style:{marginBottom:20}},
+    React.createElement("label", {style:{display:"block",color:err?"#c0392b":COLORS.blue,fontSize:11,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}}, label),
+    children,
+    err && React.createElement("div", {style:{color:"#c0392b",fontSize:12,marginTop:6}}, "⚠️ "+err)
+  );
+}
+
+const emptyProfile = { branche:"", brandstatement:"", brandstory:"", ebene1:"", ebene2:"", ebene3:"", angebote:[], keywords:"", voice1:"Leader", voice2:"Mentorin", voiceWords:"", plattform:"Instagram", contentFormat:"beides", lernbeispiele:[] };
+
+function App() {
+  const [user, setUser] = useState(null);
+  const [view, setView] = useState("login");
+  const [tab, setTab] = useState(0);
+  const [profile, setProfile] = useState(emptyProfile);
+  const [saved, setSaved] = useState(false);
+  const [errors, setErrors] = useState({});
+  const [gen, setGen] = useState({ feedDays:3, storyDays:5, weeks:4, ziel:"Wachstum (neue Reichweite)", thema:"", selectedAngebote:[] });
+  const [newAng, setNewAng] = useState({ name:"", beschreibung:"", preis:"" });
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [lernText, setLernText] = useState("");
+  const [lernLabel, setLernLabel] = useState("");
+  const [suggestedKW, setSuggestedKW] = useState([]);
+  const [kwLoading, setKwLoading] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("ctc_user");
+    if(saved) {
+      const u = JSON.parse(saved);
+      setUser(u);
+      loadProfile(u.email);
+      setView("home");
+    }
+  }, []);
+
+  const loadProfile = (email) => {
+    const key = "ctc_profile_" + email.replace(/[^a-z0-9]/gi,"_");
+    const p = localStorage.getItem(key);
+    if(p) { setProfile(JSON.parse(p)); setSaved(true); }
+  };
+
+  const handleGoogleLogin = (response) => {
+    const payload = JSON.parse(atob(response.credential.split('.')[1]));
+    const u = { name: payload.name, email: payload.email, picture: payload.picture };
+    setUser(u);
+    localStorage.setItem("ctc_user", JSON.stringify(u));
+    loadProfile(u.email);
+    setView("home");
+  };
+
+  useEffect(() => {
+    if(view === "login" && window.google) {
+      setTimeout(() => {
+        try {
+          window.google.accounts.id.initialize({ client_id: "708269854310-mubukt5e78m9bdg9g7ogt19v5htnie35.apps.googleusercontent.com", callback: handleGoogleLogin });
+          window.google.accounts.id.renderButton(document.getElementById("google-btn"), { theme:"outline", size:"large", text:"signin_with", locale:"de" });
+        } catch(e) {}
+      }, 500);
+    }
+  }, [view]);
+
+  const logout = () => { setUser(null); setView("login"); setSaved(false); setProfile(emptyProfile); localStorage.removeItem("ctc_user"); };
+
+  const upd = (k,v) => setProfile(p=>({...p,[k]:v}));
+  const updG = (k,v) => setGen(g=>({...g,[k]:v}));
+
+  const validate = () => {
+    const e = {};
+    if(!profile.branche.trim()) e.branche="Bitte gib deine Nische an.";
+    if(!profile.brandstatement.trim()) e.brandstatement="Das Brand-Statement ist Pflichtfeld.";
+    if(!profile.brandstory.trim()) e.brandstory="Die Brandstory ist Pflichtfeld.";
+    if(!profile.ebene2.trim()) e.ebene2="Ebene 2 ist Pflicht.";
+    if(!profile.ebene3.trim()) e.ebene3="Ebene 3 ist Pflicht.";
+    if(profile.angebote.length===0) e.angebote="Bitte lege mindestens ein Angebot an.";
+    setErrors(e); return Object.keys(e).length===0;
+  };
+
+  const saveProfile = () => {
+    if(!validate()){setTab(0);return;}
+    const key = "ctc_profile_" + user.email.replace(/[^a-z0-9]/gi,"_");
+    localStorage.setItem(key, JSON.stringify(profile));
+    setSaved(true); setView("home");
+  };
+
+  const addAngebot = () => {
+    if(!newAng.name.trim()) return;
+    upd("angebote",[...profile.angebote,{...newAng,id:Date.now()}]);
+    setNewAng({name:"",beschreibung:"",preis:""});
+  };
+  const toggleAng = id => { const c=gen.selectedAngebote; updG("selectedAngebote",c.includes(id)?c.filter(x=>x!==id):[...c,id]); };
+  const addLern = () => { if(!lernText.trim()) return; upd("lernbeispiele",[...profile.lernbeispiele,{id:Date.now(),label:lernLabel||"Caption",text:lernText}]); setLernText("");setLernLabel(""); };
+  const addKW = kw => { const c=profile.keywords?profile.keywords.split(",").map(k=>k.trim()).filter(Boolean):[]; if(!c.includes(kw)) upd("keywords",[...c,kw].join(", ")); };
+
+  const suggestKW = async () => {
+    setKwLoading(true);
+    try { const t=await callAPI("Schlage 10 Instagram-Keywords (keine Hashtags) für diese Nische vor: "+profile.branche+". Antworte NUR mit einer kommagetrennten Liste.",300); setSuggestedKW(t.split(",").map(k=>k.trim()).filter(Boolean)); } catch {}
+    setKwLoading(false);
+  };
+
+  const profileComplete = profile.branche&&profile.brandstatement&&profile.brandstory&&profile.ebene2&&profile.ebene3&&profile.angebote.length>0;
+
+  const generate = async () => {
+    if(!profileComplete){setView("profile");return;}
+    setLoading(true); setView("result"); setResult("");
+    const selAng=profile.angebote.filter(a=>gen.selectedAngebote.includes(a.id));
+    const angText=(selAng.length>0?selAng:profile.angebote).map(a=>"- "+a.name+(a.preis?" ("+a.preis+")":"")+(a.beschreibung?": "+a.beschreibung:"")).join("\n");
+    const lernCtx=profile.lernbeispiele.length>0?"\n\nMEINE CAPTION-BEISPIELE:\n"+profile.lernbeispiele.map(l=>l.text).join("\n---\n"):"";
+    const prompt=["Erstelle Content-Plan nach dem 3x3 Content to Cash Code.","","PROFIL:","Branche: "+profile.branche,"Brand-Statement: "+profile.brandstatement,"Brandstory: "+profile.brandstory,"","TRAUMKUNDEN:","Ebene 1: "+(profile.ebene1||"–"),"Ebene 2 (HAUPTQUELLE): "+profile.ebene2,"Ebene 3 (HAUPTQUELLE): "+profile.ebene3,"","ANGEBOTE:",angText,"","VOICE:","Haupt: "+profile.voice1+" – "+VOICES[profile.voice1]?.wording,"2. Voice: "+profile.voice2+" – "+VOICES[profile.voice2]?.wording,"Phrasen: "+(profile.voiceWords||"–"),"","KEYWORDS: "+(profile.keywords||"–"),"Format: "+profile.contentFormat,"Plattform: "+profile.plattform,"","Wochen: "+gen.weeks,"Feed/Woche: "+gen.feedDays+"x","Stories/Woche: "+gen.storyDays+"x","Ziel: "+gen.ziel,gen.thema?"Thema: "+gen.thema:"",lernCtx].filter(Boolean).join("\n");
+    try { const t=await callAPI(prompt); setResult(t); } catch(e){setResult("Fehler: "+e.message);}
+    setLoading(false);
+  };
+
+  const copyAll = () => { navigator.clipboard.writeText(result); setCopied(true); setTimeout(()=>setCopied(false),2000); };
+  const downloadTxt = () => { const b=new Blob([result],{type:"text/plain;charset=utf-8"}); const u=URL.createObjectURL(b); const a=document.createElement("a");a.href=u;a.download="content-plan.txt";a.click();URL.revokeObjectURL(u); };
+  const downloadCsv = () => {
+    const rows=[["Woche","Tag","Säule","Format","Hook","CTA"]];
+    let week="",day="",col="",fmt="",hook="",cta="";
+    result.split("\n").forEach(l=>{
+      if(l.startsWith("## WOCHE")) week=l.replace(/##\s*/,"").trim();
+      else if(l.match(/^###.*–/)){const p=l.replace(/###\s*/,"").split("–");day=p[0]?.trim()||"";col=p[1]?.trim()||"";fmt=p[2]?.trim()||"";}
+      else if(l.startsWith("**HOOK STATISCH")) hook=l.replace(/\*\*HOOK STATISCH[^:]*:\*\*/,"").trim();
+      else if(l.startsWith("**CTA:**")){cta=l.replace("**CTA:**","").trim();if(day)rows.push([week,day,col,fmt,hook,cta]);}
+    });
+    const csv=rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n");
+    const b=new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download="content-plan.csv";a.click();URL.revokeObjectURL(u);
+  };
+
+  const tabs = ["🏢 Basics","👩 Traumkundin","💎 Angebote","🎤 Voice","📚 Lernen"];
+
+  return React.createElement("div", {style:{minHeight:"100vh",background:COLORS.bg,fontFamily:"Montserrat,Arial,sans-serif",color:COLORS.dark,display:"flex",flexDirection:"column"}},
+
+    // HEADER
+    React.createElement("header", {style:{background:COLORS.blue,padding:"14px 24px",display:"flex",alignItems:"center",gap:16,boxShadow:"0 2px 12px rgba(0,0,0,0.15)"}},
+      React.createElement("img", {src:LOGO, alt:"Brit Ortlepp", style:{height:36,objectFit:"contain",filter:"brightness(10)"}}),
+      React.createElement("div", {style:{flex:1}},
+        React.createElement("div", {style:{color:COLORS.yellow,fontSize:11,letterSpacing:3,textTransform:"uppercase",fontWeight:700}},"Content to Cash Creator")
+      ),
+      user && React.createElement("div", {style:{display:"flex",alignItems:"center",gap:10}},
+        React.createElement("img", {src:user.picture, alt:user.name, style:{width:32,height:32,borderRadius:"50%",border:`2px solid ${COLORS.yellow}`}}),
+        React.createElement("span", {style:{color:"#fff",fontSize:13,fontWeight:600}}, user.name.split(" ")[0]),
+        view!=="home"&&React.createElement("button",{onClick:()=>setView("home"),style:{...S.ghost,color:"#fff",borderColor:"rgba(255,255,255,.4)",fontSize:12}},"🏠"),
+        React.createElement("button",{onClick:logout,style:{...S.ghost,color:"#fff",borderColor:"rgba(255,255,255,.4)",fontSize:12}},"Logout")
+      )
+    ),
+
+    // MAIN
+    React.createElement("main", {style:{flex:1, maxWidth:820, margin:"0 auto", width:"100%", padding:"28px 18px 40px"}},
+
+      // LOGIN
+      view==="login" && React.createElement("div", {style:{textAlign:"center",paddingTop:40}},
+        React.createElement("div", {style:{display:"flex",justifyContent:"center",marginBottom:32}},
+          React.createElement("img", {src:FOTO_RING, alt:"Brit Ortlepp", style:{width:280,height:380,objectFit:"cover",borderRadius:20,boxShadow:"0 8px 40px rgba(0,0,0,0.15)"}})
+        ),
+        React.createElement("h1", {style:{fontSize:28,fontWeight:900,marginBottom:8,color:COLORS.blue}}, "Content to Cash Creator"),
+        React.createElement("p", {style:{color:COLORS.mid,fontSize:14,maxWidth:420,margin:"0 auto 12px",lineHeight:1.7}}, "Dein KI-Tool für Leadership-Content nach dem 3×3 Content to Cash Code"),
+        React.createElement("p", {style:{color:COLORS.blue,fontSize:13,fontWeight:700,marginBottom:32}}, "by Brit Ortlepp"),
+        React.createElement("div", {style:{background:COLORS.card,borderRadius:20,padding:"32px",maxWidth:400,margin:"0 auto",boxShadow:"0 4px 24px rgba(0,0,0,0.08)"}},
+          React.createElement("p", {style:{fontSize:14,color:COLORS.mid,marginBottom:24,lineHeight:1.7}}, "Melde dich mit deinem Google-Account an. Dein Profil wird automatisch gespeichert und ist bei jedem Login verfügbar."),
+          React.createElement("div", {id:"google-btn", style:{display:"flex",justifyContent:"center"}}),
+          React.createElement("p", {style:{fontSize:11,color:"#999",marginTop:16}}, "Deine Daten sind sicher und werden nicht weitergegeben.")
+        )
+      ),
+
+      // HOME
+      view==="home" && React.createElement("div", null,
+        React.createElement("div", {style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:24,alignItems:"center"}},
+          React.createElement("div", null,
+            React.createElement("div", {style:{color:COLORS.blue,fontSize:11,letterSpacing:3,textTransform:"uppercase",marginBottom:8,fontWeight:700}}, "Willkommen zurück!"),
+            React.createElement("h1", {style:{fontSize:26,fontWeight:900,marginBottom:8,lineHeight:1.2,color:COLORS.dark}}, "Content to Cash ", React.createElement("span",{style:{color:COLORS.blue}},"Creator")),
+            React.createElement("p", {style:{color:COLORS.mid,fontSize:13,lineHeight:1.7,marginBottom:24}}, "Erstelle Leadership-Content der verkauft – nach dem 3×3 Content to Cash Code von Brit Ortlepp."),
+            React.createElement("div", {style:{display:"flex",flexDirection:"column",gap:10}},
+              React.createElement("div", {onClick:()=>profileComplete?setView("generate"):setView("profile"), style:{background:profileComplete?COLORS.yellow:COLORS.blue,borderRadius:14,padding:"18px",cursor:"pointer",display:"flex",alignItems:"center",gap:12}},
+                React.createElement("span",{style:{fontSize:24}},profileComplete?"✨":"👤"),
+                React.createElement("div",null,
+                  React.createElement("div",{style:{fontWeight:800,fontSize:14,color:profileComplete?COLORS.dark:COLORS.white}},profileComplete?"Content erstellen →":"Profil anlegen →"),
+                  React.createElement("div",{style:{fontSize:12,color:profileComplete?"rgba(0,0,0,.6)":"rgba(255,255,255,.7)"}},profileComplete?"Plan für 1–4 Wochen generieren":"Einmalig ausfüllen, dann loslegen")
+                )
+              ),
+              saved && React.createElement("div", {onClick:()=>setView("profile"), style:{background:COLORS.card,borderRadius:14,padding:"14px 18px",cursor:"pointer",border:`1px solid ${COLORS.border}`}},
+                React.createElement("div",{style:{fontWeight:700,fontSize:13,color:COLORS.blue}},"👤 Profil bearbeiten"),
+                React.createElement("div",{style:{fontSize:12,color:COLORS.mid,marginTop:2}},profile.branche.slice(0,50)+"...")
+              )
+            )
+          ),
+          React.createElement("img", {src:FOTO_RING, alt:"Brit Ortlepp", style:{width:"100%",height:320,objectFit:"cover",objectPosition:"top",borderRadius:20,boxShadow:"0 8px 32px rgba(0,0,0,0.12)"}})
+        ),
+
+        // ANLEITUNG
+        React.createElement("div", {style:{background:COLORS.blue,borderRadius:16,padding:"24px",marginBottom:20,color:"#fff"}},
+          React.createElement("div", {style:{fontWeight:800,fontSize:15,marginBottom:16,color:COLORS.yellow}}, "🗺️ So funktioniert dein Tool"),
+          [
+            {n:"1", icon:"👤", t:"Profil anlegen", d:"Nische, Traumkundin auf 3 Ebenen, Angebote & Voice – einmalig ausfüllen", done:profileComplete},
+            {n:"2", icon:"✨", t:"Content erstellen", d:"Zeitraum & Ziel wählen → KI erstellt deinen vollständigen Plan", done:false},
+            {n:"3", icon:"📋", t:"Exportieren & posten", d:"Als .txt oder .csv herunterladen → direkt auf Instagram nutzen", done:false},
+          ].map((s,i)=>React.createElement("div",{key:i,style:{display:"flex",gap:14,marginBottom:i<2?14:0,alignItems:"flex-start"}},
+            React.createElement("div",{style:{width:32,height:32,borderRadius:"50%",background:s.done?"#27ae60":COLORS.yellow,display:"flex",alignItems:"center",justifyContent:"center",fontSize:s.done?16:14,fontWeight:900,color:COLORS.dark,flexShrink:0}},s.done?"✓":s.n),
+            React.createElement("div",null,
+              React.createElement("div",{style:{fontWeight:800,fontSize:13,color:"#fff"}},(i===0&&!s.done)?React.createElement("span",{onClick:()=>setView("profile"),style:{cursor:"pointer",textDecoration:"underline",color:COLORS.yellow}},s.t+" →"):s.t),
+              React.createElement("div",{style:{fontSize:12,color:"rgba(255,255,255,.7)",marginTop:2}},s.d)
+            )
+          ))
+        )
+      ),
+
+      // PROFIL
+      view==="profile" && React.createElement("div", null,
+        React.createElement("h2", {style:{fontSize:20,fontWeight:900,marginBottom:4,color:COLORS.blue}}, "👤 Dein Profil"),
+        React.createElement("p", {style:{color:COLORS.mid,fontSize:13,marginBottom:20}}, "Einmal ausfüllen – dauerhaft gespeichert unter deinem Google-Account."),
+        React.createElement("div", {style:{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap"}},
+          tabs.map((t,i)=>React.createElement("button",{key:i,onClick:()=>setTab(i),style:{...S.chip,background:tab===i?COLORS.yellow:COLORS.white,color:tab===i?COLORS.dark:COLORS.blue,border:`1px solid ${tab===i?COLORS.yellow:COLORS.border}`,fontSize:12}},t))
+        ),
+
+        tab===0&&React.createElement("div",null,
+          React.createElement(Grp,{label:"🏢 Branche und Nische *",err:errors.branche},React.createElement(TA,{value:profile.branche,onChange:v=>upd("branche",v),ph:"z.B. Business-Coach für selbstständige Frauen...",rows:2})),
+          React.createElement(Grp,{label:"💬 Brand-Statement * (Pflichtfeld)",err:errors.brandstatement},React.createElement(IN,{value:profile.brandstatement,onChange:v=>upd("brandstatement",v),ph:"Ich helfe [Zielgruppe], [Ergebnis] zu erreichen."})),
+          React.createElement(Grp,{label:"📖 Brandstory * (Pflichtfeld)",err:errors.brandstory},React.createElement(TA,{value:profile.brandstory,onChange:v=>upd("brandstory",v),ph:"Mein Weg, Wendepunkt, Mission, Werte...",rows:5})),
+          React.createElement(Grp,{label:"📱 Plattform"},
+            React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+              ["Instagram","TikTok","LinkedIn","Instagram + TikTok"].map(p=>React.createElement(Chip,{key:p,active:profile.plattform===p,onClick:()=>upd("plattform",p)},p))
+            )
+          ),
+          React.createElement(Grp,{label:"🎬 Format-Präferenz"},
+            React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+              ["überwiegend Reels","überwiegend Karussell","beides gleich"].map(f=>React.createElement(Chip,{key:f,active:profile.contentFormat===f,onClick:()=>upd("contentFormat",f)},f))
+            )
+          )
+        ),
+
+        tab===1&&React.createElement("div",null,
+          React.createElement("div",{style:{background:"#e8f4e8",border:"1px solid #27ae60",borderRadius:12,padding:"14px 16px",marginBottom:20,fontSize:13,lineHeight:1.7}},
+            React.createElement("b",{style:{color:"#1a5c1a"}},"💡 Wichtig: "), "Ebene 2 und 3 sind die Basis deiner Hooks. Nur wer die innere Welt kennt, schreibt Hooks die treffen."
+          ),
+          React.createElement(Grp,{label:"Ebene 1 – Oberfläche (Demografie)"},React.createElement(TA,{value:profile.ebene1,onChange:v=>upd("ebene1",v),ph:"Alter, Beruf, Familienstatus...",rows:3})),
+          React.createElement(Grp,{label:"Ebene 2 – Psychografie * (Hauptquelle für Hooks)",err:errors.ebene2},React.createElement(TA,{value:profile.ebene2,onChange:v=>upd("ebene2",v),ph:"Werte, Ängste, Glaubenssätze, Sehnsüchte, innere Konflikte...",rows:6})),
+          React.createElement(Grp,{label:"Ebene 3 – Transformation * (Hauptquelle für Hooks)",err:errors.ebene3},React.createElement(TA,{value:profile.ebene3,onChange:v=>upd("ebene3",v),ph:"Identity Shift, Wunschergebnis, Einwände, Energiewechsel...",rows:6})),
+          React.createElement(Grp,{label:"🔑 Keywords"},
+            React.createElement(IN,{value:profile.keywords,onChange:v=>upd("keywords",v),ph:"Kommagetrennt: Leadership-Content, Traumkundin..."}),
+            React.createElement("div",{style:{display:"flex",gap:8,marginTop:10,flexWrap:"wrap",alignItems:"center"}},
+              React.createElement("button",{onClick:suggestKW,disabled:kwLoading,style:{...S.secondary,fontSize:12,padding:"8px 14px"}},kwLoading?"⏳ Laden...":"✨ Keywords vorschlagen"),
+              suggestedKW.map(kw=>React.createElement("button",{key:kw,onClick:()=>addKW(kw),style:{...S.chip,fontSize:11,padding:"6px 12px",background:COLORS.white,color:COLORS.blue,border:`1px solid ${COLORS.border}`}},"+"+kw))
+            )
+          )
+        ),
+
+        tab===2&&React.createElement("div",null,
+          errors.angebote&&React.createElement("div",{style:{background:"#fde",border:"1px solid #c0392b",borderRadius:8,padding:"10px 14px",fontSize:13,color:"#c0392b",marginBottom:12}},"⚠️ "+errors.angebote),
+          profile.angebote.length>0&&React.createElement("div",{style:{marginBottom:16,display:"flex",flexDirection:"column",gap:8}},
+            profile.angebote.map(a=>React.createElement("div",{key:a.id,style:{background:COLORS.white,borderRadius:10,padding:"12px 14px",display:"flex",justifyContent:"space-between",border:`1px solid ${COLORS.border}`}},
+              React.createElement("div",null,React.createElement("div",{style:{fontWeight:700}},a.name,a.preis&&React.createElement("span",{style:{color:COLORS.blue,fontSize:12}}," · "+a.preis)),a.beschreibung&&React.createElement("div",{style:{color:COLORS.mid,fontSize:12}},a.beschreibung)),
+              React.createElement("button",{onClick:()=>upd("angebote",profile.angebote.filter(x=>x.id!==a.id)),style:{background:"none",border:"none",color:"#c0392b",cursor:"pointer",fontSize:20}},"×")
+            ))
+          ),
+          React.createElement("div",{style:{background:COLORS.white,borderRadius:12,padding:16,border:`1px dashed ${COLORS.border}`}},
+            React.createElement("div",{style:{fontSize:12,color:COLORS.blue,marginBottom:10,fontWeight:700,letterSpacing:1}},"+ NEUES ANGEBOT"),
+            React.createElement(IN,{value:newAng.name,onChange:v=>setNewAng(p=>({...p,name:v})),ph:"Name des Angebots"}),
+            React.createElement(IN,{value:newAng.beschreibung,onChange:v=>setNewAng(p=>({...p,beschreibung:v})),ph:"Kurze Beschreibung (optional)",style:{marginTop:8}}),
+            React.createElement(IN,{value:newAng.preis,onChange:v=>setNewAng(p=>({...p,preis:v})),ph:"Preis (optional)",style:{marginTop:8}}),
+            React.createElement("button",{onClick:addAngebot,style:{...S.primary,marginTop:12,fontSize:13,padding:"10px 20px"}},"+ Angebot hinzufügen")
+          )
+        ),
+
+        tab===3&&React.createElement("div",null,
+          React.createElement(Grp,{label:"🎤 Haupt-Voice *",err:errors.voice1},
+            React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
+              Object.entries(VOICES).map(([name,v])=>React.createElement("div",{key:name,onClick:()=>upd("voice1",name),style:{background:profile.voice1===name?COLORS.yellow:COLORS.white,border:`2px solid ${profile.voice1===name?COLORS.yellow:COLORS.border}`,borderRadius:12,padding:14,cursor:"pointer"}},
+                React.createElement("div",{style:{fontSize:20,marginBottom:4}},v.emoji),
+                React.createElement("div",{style:{fontWeight:800,fontSize:13,color:COLORS.dark}},name),
+                React.createElement("div",{style:{fontSize:11,color:COLORS.mid,marginBottom:4}},v.kurz),
+                React.createElement("div",{style:{fontSize:10,color:"#888",fontStyle:"italic"}},'"'+v.beispiel+'"')
+              ))
+            )
+          ),
+          React.createElement(Grp,{label:"🎤 2. Voice (ergänzend)"},
+            React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
+              Object.entries(VOICES).map(([name,v])=>React.createElement("div",{key:name,onClick:()=>upd("voice2",name),style:{background:profile.voice2===name?"#dce8ed":COLORS.white,border:`2px solid ${profile.voice2===name?COLORS.blue:COLORS.border}`,borderRadius:12,padding:14,cursor:"pointer",opacity:profile.voice1===name?0.35:1}},
+                React.createElement("div",{style:{fontSize:20,marginBottom:4}},v.emoji),
+                React.createElement("div",{style:{fontWeight:800,fontSize:13,color:COLORS.dark}},name),
+                React.createElement("div",{style:{fontSize:11,color:COLORS.mid}},v.kurz)
+              ))
+            )
+          ),
+          React.createElement(Grp,{label:"✍️ Typische Wörter und Phrasen"},React.createElement(TA,{value:profile.voiceWords,onChange:v=>upd("voiceWords",v),ph:"Wörter die du nutzt. Auch was du NIE schreiben würdest.",rows:3}))
+        ),
+
+        tab===4&&React.createElement("div",null,
+          React.createElement("div",{style:{background:"#dce8ed",border:`1px solid ${COLORS.blue}`,borderRadius:12,padding:"14px 16px",marginBottom:20,fontSize:13,lineHeight:1.7}},
+            React.createElement("b",{style:{color:COLORS.blue}},"🧠 Tool-Learning: "),"Lade Captions hoch die du verändert hast. Das Tool lernt deinen Stil."
+          ),
+          React.createElement(Grp,{label:"Bezeichnung"},React.createElement(IN,{value:lernLabel,onChange:setLernLabel,ph:"z.B. Hook-Post vom 15.4."})),
+          React.createElement(Grp,{label:"Deine bearbeitete Caption"},React.createElement(TA,{value:lernText,onChange:setLernText,ph:"Füge deine veränderte Caption ein...",rows:5})),
+          React.createElement("button",{onClick:addLern,style:{...S.primary,marginBottom:20}},"+ Caption speichern"),
+          profile.lernbeispiele.length>0&&React.createElement("div",null,
+            React.createElement("div",{style:{color:COLORS.blue,fontSize:11,letterSpacing:1,textTransform:"uppercase",marginBottom:10,fontWeight:700}},"Gespeicherte Beispiele ("+profile.lernbeispiele.length+")"),
+            profile.lernbeispiele.map(l=>React.createElement("div",{key:l.id,style:{background:COLORS.white,borderRadius:10,padding:"12px 14px",marginBottom:8,border:`1px solid ${COLORS.border}`}},
+              React.createElement("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:4}},
+                React.createElement("b",{style:{fontSize:13,color:COLORS.dark}},l.label),
+                React.createElement("button",{onClick:()=>upd("lernbeispiele",profile.lernbeispiele.filter(x=>x.id!==l.id)),style:{background:"none",border:"none",color:"#c0392b",cursor:"pointer",fontSize:18}},"×")
+              ),
+              React.createElement("div",{style:{fontSize:12,color:COLORS.mid,lineHeight:1.6}},l.text.slice(0,120)+(l.text.length>120?"...":""))
+            ))
+          )
+        ),
+
+        React.createElement("div",{style:{marginTop:24,display:"flex",gap:10}},
+          tab>0&&React.createElement("button",{onClick:()=>setTab(t=>t-1),style:S.secondary},"← Zurück"),
+          tab<tabs.length-1&&React.createElement("button",{onClick:()=>setTab(t=>t+1),style:S.primary},"Weiter →"),
+          tab===tabs.length-1&&React.createElement("button",{onClick:saveProfile,style:{...S.primary,flex:1}},"💾 Profil speichern")
+        ),
+        tab<tabs.length-1&&React.createElement("button",{onClick:saveProfile,style:{...S.secondary,width:"100%",marginTop:10,fontSize:12}},"Zwischenspeichern")
+      ),
+
+      // GENERATE
+      view==="generate" && React.createElement("div", null,
+        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr auto",gap:20,alignItems:"start",marginBottom:24}},
+          React.createElement("div",null,
+            React.createElement("h2",{style:{fontSize:20,fontWeight:900,marginBottom:4,color:COLORS.blue}},"✨ Content erstellen"),
+            React.createElement("p",{style:{color:COLORS.mid,fontSize:13}},"Wähle deine Einstellungen für diese Periode.")
+          ),
+          React.createElement("img",{src:FOTO_GLAS,alt:"Brit",style:{width:90,height:120,objectFit:"cover",objectPosition:"top",borderRadius:12,boxShadow:"0 4px 16px rgba(0,0,0,0.12)"}})
+        ),
+
+        React.createElement("div",{style:{background:COLORS.card,borderRadius:12,padding:"14px 18px",marginBottom:20,fontSize:13,border:`1px solid ${COLORS.border}`}},
+          React.createElement("span",{style:{color:COLORS.blue,fontSize:11,letterSpacing:2,textTransform:"uppercase",fontWeight:700}},"Profil · "),
+          React.createElement("b",null,profile.branche),
+          React.createElement("button",{onClick:()=>setView("profile"),style:{marginLeft:10,background:"none",border:"none",color:COLORS.blue,fontSize:12,cursor:"pointer",textDecoration:"underline"}},"bearbeiten")
+        ),
+
+        React.createElement(Grp,{label:"💎 Angebote auswählen (Mehrfachauswahl)"},
+          React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:8}},
+            profile.angebote.map(a=>React.createElement("div",{key:a.id,onClick:()=>toggleAng(a.id),style:{background:gen.selectedAngebote.includes(a.id)?"#dce8ed":COLORS.white,border:`2px solid ${gen.selectedAngebote.includes(a.id)?COLORS.blue:COLORS.border}`,borderRadius:10,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12}},
+              React.createElement("div",{style:{width:20,height:20,borderRadius:4,background:gen.selectedAngebote.includes(a.id)?COLORS.blue:"transparent",border:`2px solid ${gen.selectedAngebote.includes(a.id)?COLORS.blue:COLORS.border}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:"#fff",flexShrink:0}},gen.selectedAngebote.includes(a.id)?"✓":""),
+              React.createElement("div",null,React.createElement("div",{style:{fontWeight:700,color:COLORS.dark}},a.name,a.preis&&React.createElement("span",{style:{color:COLORS.blue,fontSize:12}}," · "+a.preis)),a.beschreibung&&React.createElement("div",{style:{color:COLORS.mid,fontSize:12}},a.beschreibung))
+            )),
+            React.createElement("div",{style:{fontSize:12,color:"#999"}},"Nichts ausgewählt = alle Angebote")
+          )
+        ),
+
+        React.createElement(Grp,{label:"📅 Zeitraum"},React.createElement("div",{style:{display:"flex",gap:8}},[1,2,4].map(w=>React.createElement(Chip,{key:w,active:gen.weeks===w,onClick:()=>updG("weeks",w)},w+" "+(w===1?"Woche":"Wochen"))))),
+        React.createElement(Grp,{label:"📲 Feed-Posts / Woche"},React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},[1,2,3,4,5,6,7].map(n=>React.createElement(Chip,{key:n,active:gen.feedDays===n,onClick:()=>updG("feedDays",n)},n+"x")))),
+        React.createElement(Grp,{label:"📖 Stories / Woche"},React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},[0,1,2,3,5,7].map(n=>React.createElement(Chip,{key:n,active:gen.storyDays===n,onClick:()=>updG("storyDays",n)},n+"x")))),
+        React.createElement(Grp,{label:"🎯 Content-Ziel"},
+          React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+            ["Wachstum (neue Reichweite)","Verbindung und Vertrauen","Launch und Verkauf"].map(z=>React.createElement(Chip,{key:z,active:gen.ziel===z,onClick:()=>updG("ziel",z)},z))
+          ),
+          React.createElement("div",{style:{marginTop:8,fontSize:12,color:COLORS.blue}},
+            gen.ziel==="Wachstum (neue Reichweite)"&&"Authority 60% | Demand 30% | Conversion 10%",
+            gen.ziel==="Verbindung und Vertrauen"&&"Authority 30% | Demand 50% | Conversion 20%",
+            gen.ziel==="Launch und Verkauf"&&"Authority 20% | Demand 30% | Conversion 50%"
+          )
+        ),
+        React.createElement(Grp,{label:"💡 Schwerpunkt-Thema (optional)"},React.createElement(IN,{value:gen.thema,onChange:v=>updG("thema",v),ph:"z.B. Kurs-Launch im Oktober..."})),
+        React.createElement("button",{onClick:generate,style:{...S.primary,width:"100%",fontSize:15,padding:16,marginTop:8}},"🚀 Content für "+gen.weeks+" "+(gen.weeks===1?"Woche":"Wochen")+" erstellen!")
+      ),
+
+      // RESULT
+      view==="result" && React.createElement("div", null,
+        loading ? React.createElement("div",{style:{textAlign:"center",padding:"60px 0"}},
+          React.createElement("img",{src:FOTO_GLAS,alt:"Brit",style:{width:80,height:80,borderRadius:"50%",objectFit:"cover",objectPosition:"top",marginBottom:16}}),
+          React.createElement("div",{style:{fontWeight:800,fontSize:18,marginBottom:8,color:COLORS.blue}},"Dein Content wird erstellt..."),
+          React.createElement("div",{style:{color:COLORS.mid,fontSize:13,marginBottom:24}},"Hooks, Captions, Storytelling – alles auf deine Traumkundin zugeschnitten."),
+          React.createElement("div",{className:"spinner"},React.createElement("div",{className:"dot"}),React.createElement("div",{className:"dot"}),React.createElement("div",{className:"dot"}))
+        ) : React.createElement("div",null,
+          React.createElement("div",{style:{background:COLORS.blue,borderRadius:12,padding:"16px 20px",marginBottom:16,display:"flex",alignItems:"center",gap:12}},
+            React.createElement("span",{style:{fontSize:24}},"🎉"),
+            React.createElement("div",null,
+              React.createElement("div",{style:{fontWeight:800,fontSize:15,color:"#fff"}},"Dein Content ist fertig!"),
+              React.createElement("div",{style:{fontSize:12,color:"rgba(255,255,255,.7)"}},"3×3 Content to Cash Code · by Brit Ortlepp")
+            )
+          ),
+          React.createElement("div",{style:{background:COLORS.card,borderRadius:12,padding:"16px 20px",marginBottom:16,border:`1px solid ${COLORS.border}`}},
+            React.createElement("div",{style:{color:COLORS.blue,fontSize:11,letterSpacing:2,textTransform:"uppercase",marginBottom:12,fontWeight:700}},"⬇️ Content exportieren"),
+            React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+              React.createElement("button",{onClick:downloadTxt,style:{...S.primary,fontSize:13,padding:"10px 18px"}},"📄 .txt herunterladen"),
+              React.createElement("button",{onClick:downloadCsv,style:{...S.secondary,fontSize:13,padding:"10px 18px"}},"📊 .csv (Excel)"),
+              React.createElement("button",{onClick:copyAll,style:{...S.secondary,fontSize:13,padding:"10px 18px"}},copied?"✓ Kopiert!":"📋 Kopieren")
+            ),
+            React.createElement("div",{style:{fontSize:11,color:"#999",marginTop:8}},"💡 .csv öffnet sich direkt in Excel oder Numbers")
+          ),
+          React.createElement("div",{style:{background:COLORS.white,borderRadius:16,padding:"28px 24px",fontSize:13.5,lineHeight:1.85,border:`1px solid ${COLORS.border}`}},
+            React.createElement(ResultRenderer,{text:result})
+          ),
+          React.createElement("div",{style:{display:"flex",gap:10,marginTop:16,flexWrap:"wrap"}},
+            React.createElement("button",{onClick:generate,style:{...S.secondary,flex:1}},"🔄 Neu generieren"),
+            React.createElement("button",{onClick:()=>setView("generate"),style:{...S.secondary,flex:1}},"← Einstellungen")
+          )
+        )
+      )
+    ),
+
+    // FOOTER
+    React.createElement("footer", {style:{background:COLORS.blue,color:"rgba(255,255,255,.8)",padding:"32px 24px",marginTop:"auto"}},
+      React.createElement("div",{style:{maxWidth:820,margin:"0 auto"}},
+        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:24,marginBottom:24}},
+          React.createElement("div",null,
+            React.createElement("img",{src:LOGO,alt:"Brit Ortlepp",style:{height:28,filter:"brightness(10)",marginBottom:12}}),
+            React.createElement("p",{style:{fontSize:12,lineHeight:1.7}},"Content to Cash Creator – KI-Tool für Leadership-Content nach dem 3×3 Content to Cash Code.")
+          ),
+          React.createElement("div",null,
+            React.createElement("div",{style:{fontWeight:700,marginBottom:10,color:"#fff",fontSize:13}},"Kontakt"),
+            React.createElement("div",{style:{fontSize:12,lineHeight:2}},
+              React.createElement("div",null,"Brit Ortlepp"),
+              React.createElement("div",null,"Kaspar-Lang-Str. 25"),
+              React.createElement("div",null,"91334 Hemhofen"),
+              React.createElement("a",{href:"mailto:hallo@britortlepp.de",style:{color:COLORS.yellow}},"hallo@britortlepp.de")
+            )
+          ),
+          React.createElement("div",null,
+            React.createElement("div",{style:{fontWeight:700,marginBottom:10,color:"#fff",fontSize:13}},"Rechtliches"),
+            React.createElement("div",{style:{fontSize:12,lineHeight:2}},
+              React.createElement("a",{href:"https://britortlepp.de/impressum/",target:"_blank",style:{color:"rgba(255,255,255,.8)",display:"block"}},"Impressum"),
+              React.createElement("a",{href:"https://britortlepp.de/datenschutz/",target:"_blank",style:{color:"rgba(255,255,255,.8)",display:"block"}},"Datenschutz"),
+              React.createElement("a",{href:"https://britortlepp.de/agb/",target:"_blank",style:{color:"rgba(255,255,255,.8)",display:"block"}},"AGB")
+            )
+          )
+        ),
+        React.createElement("div",{style:{borderTop:"1px solid rgba(255,255,255,.2)",paddingTop:16,fontSize:11,textAlign:"center"}},
+          "© 2025 Brit Ortlepp · Content to Cash Creator · Alle Rechte vorbehalten"
+        )
+      )
+    )
+  );
+}
+
+function ResultRenderer({text}) {
+  const lines=text.split("\n"); const out=[]; let inTable=false, rows=[];
+  const flush=()=>{
+    if(!rows.length) return;
+    const cols=r=>r.split("|").filter((_,i,a)=>i>0&&i<a.length-1);
+    out.push(React.createElement("div",{key:"t"+out.length,style:{overflowX:"auto",margin:"12px 0 20px"}},
+      React.createElement("table",{style:{width:"100%",borderCollapse:"collapse",fontSize:12}},
+        React.createElement("thead",null,React.createElement("tr",null,...cols(rows[0]).map((h,i)=>React.createElement("th",{key:i,style:{background:COLORS.blue,color:"#fff",padding:"8px 10px",textAlign:"left",fontWeight:700,whiteSpace:"nowrap"}},h.trim())))),
+        React.createElement("tbody",null,...rows.slice(2).map((row,ri)=>React.createElement("tr",{key:ri,style:{background:ri%2===0?"#f9f7f5":"#fff"}},...cols(row).map((c,ci)=>React.createElement("td",{key:ci,style:{padding:"7px 10px",borderBottom:`1px solid ${COLORS.border}`,verticalAlign:"top"}},c.trim())))))
+      )
+    ));
+    rows=[]; inTable=false;
+  };
+  lines.forEach((line,i)=>{
+    if(line.startsWith("|")){inTable=true;rows.push(line);return;}
+    if(inTable) flush();
+    if(line.startsWith("# ")) out.push(React.createElement("h1",{key:i,style:{color:COLORS.blue,fontSize:20,fontWeight:900,margin:"24px 0 10px",borderBottom:`2px solid ${COLORS.yellow}`,paddingBottom:6}},line.slice(2)));
+    else if(line.startsWith("## ")) out.push(React.createElement("h2",{key:i,style:{color:COLORS.blue,fontSize:16,fontWeight:800,margin:"20px 0 8px"}},line.slice(3)));
+    else if(line.startsWith("### ")) out.push(React.createElement("h3",{key:i,style:{color:COLORS.dark,fontSize:14,fontWeight:800,margin:"14px 0 6px",background:"#f0ebe6",padding:"8px 12px",borderRadius:8,borderLeft:`3px solid ${COLORS.yellow}`}},line.slice(4)));
+    else if(line.startsWith("**")&&line.includes(":**")){const idx=line.indexOf(":**");out.push(React.createElement("p",{key:i,style:{margin:"5px 0"}},React.createElement("strong",{style:{color:COLORS.blue}},line.slice(2,idx)+":"),line.slice(idx+3).replace(/\*\*/g,"")));}
+    else if(line.startsWith("- ")||line.startsWith("* ")) out.push(React.createElement("li",{key:i,style:{marginLeft:20,marginBottom:3,lineHeight:1.75,color:COLORS.dark}},line.slice(2)));
+    else if(line.trim()==="") out.push(React.createElement("div",{key:i,style:{height:6}}));
+    else out.push(React.createElement("p",{key:i,style:{margin:"3px 0",lineHeight:1.85,color:COLORS.dark}},line.replace(/\*\*/g,"")));
+  });
+  if(inTable) flush();
+  return React.createElement(React.Fragment,null,...out);
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+</script>
+</body>
+</html>
     const { useState, useEffect } = React;
     const C = { pink:"#E94D60", blue:"#517383", yellow:"#ECEA54", beige:"#E7DFD7", dark:"#1a1a1a", mid:"#222", card:"#2a2a2a", border:"#383838", white:"#FFF" };
     const VOICES = {
