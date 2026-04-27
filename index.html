@@ -14,9 +14,22 @@ body{font-family:'Montserrat',Arial,sans-serif;background:#e6ded6;color:#1a1a1a;
 .dot:nth-child(2){animation-delay:.4s}
 .dot:nth-child(3){animation-delay:.8s}
 @keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1.2)}}
-input,textarea,button,select{outline:none;font-family:inherit}
+input,textarea,button,select{outline:none;font-family:inherit;font-size:16px}
 ::-webkit-scrollbar{width:6px}
 ::-webkit-scrollbar-thumb{background:#4d7182;border-radius:3px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#27ae60;color:#fff;padding:14px 28px;border-radius:30px;font-weight:700;font-size:14px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.2);animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@media(max-width:640px){
+  .grid2{grid-template-columns:1fr!important}
+  .footer-grid{grid-template-columns:1fr!important;gap:20px!important}
+  .hide-sm{display:none!important}
+  .full-sm{width:100%!important}
+  .tabs-wrap{gap:4px!important}
+  .tabs-wrap button{padding:8px 10px!important;font-size:11px!important}
+  .login-img{width:200px!important;height:260px!important}
+  .home-img{height:220px!important}
+  .gen-img{width:60px!important;height:80px!important}
+}
 </style>
 </head>
 <body>
@@ -25,44 +38,118 @@ input,textarea,button,select{outline:none;font-family:inherit}
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script type="text/babel">
-const {useState,useEffect}=React;
+const {useState,useEffect,useCallback}=React;
 const BLUE="#4d7182",YEL="#ebe955",BG="#e6ded6",CARD="#f5f0eb",DARK="#1a1a1a",MID="#555",BOR="#d4c9be",WHI="#fff";
 const LOGO="https://raw.githubusercontent.com/ortleppbrit/content-to-cash-creator/main/Brit_negativ.png";
 const FRING="https://raw.githubusercontent.com/ortleppbrit/content-to-cash-creator/main/BUS-Brit-428-ChristineSauer2025.jpg";
 const FGLAS="https://raw.githubusercontent.com/ortleppbrit/content-to-cash-creator/main/BUS-Brit-457-ChristineSauer2025.jpg";
 const GID="708269854310-mubukt5e78m9bdg9g7ogt19v5htnie35.apps.googleusercontent.com";
+const PKEY="ctc_profile_v5";
 
 const VOICES={
-  Leader:{e:"👑",k:"Klar, direkt, stark",w:"Aktive, klare Sprache. Keine Modalverben. Haltung zeigen.",b:"Du führst, indem du entscheidest."},
-  Mentorin:{e:"🤍",k:"Warm, weise, vertrauensvoll",w:"Emotionale, ruhige Sprache. Tiefe Einblicke, persönliche Wärme.",b:"Vertrauen ist der Beginn jeder Veränderung."},
-  Visionary:{e:"🚀",k:"Groß, inspirierend, bewegend",w:"Bildhafte, große Sprache. Zukunftsorientiert, visionär.",b:"Du erschaffst nicht Posts, du formst Gedanken."},
-  Connector:{e:"💬",k:"Nahbar, ehrlich, humorvoll",w:"Alltagssprache, locker, humorvoll. Schafft Nähe.",b:"Ich sags ehrlich: Das hatte ich nicht erwartet."},
-  Rebell:{e:"🔥",k:"Kantig, provokant, mutig",w:"Konfrontativ, mutig, kurz. Polarisiert bewusst.",b:"Brav verkauft nicht."},
+  Leader:{e:"👑",k:"Klar, direkt, stark",w:"Aktive, klare Sprache ohne Modalverben. Führt durch Klarheit und Haltung. Kein Weichspülen.",b:"Du führst, indem du entscheidest."},
+  Mentorin:{e:"🤍",k:"Warm, weise, vertrauensvoll",w:"Emotionale, ruhige Sprache. Tiefe Einblicke, persönliche Wärme. Schafft Vertrauen durch Nähe.",b:"Vertrauen ist der Beginn jeder Veränderung."},
+  Visionary:{e:"🚀",k:"Groß, inspirierend, bewegend",w:"Bildhafte, große Sprache. Zukunftsorientiert, visionär. Erzeugt Aufbruch und Bewegung.",b:"Du erschaffst nicht Posts, du formst Gedanken."},
+  Connector:{e:"💬",k:"Nahbar, ehrlich, humorvoll",w:"Alltagssprache, locker, humorvoll. Schafft Nähe durch Authentizität und echte Momente.",b:"Ich sags ehrlich: Das hatte ich nicht erwartet."},
+  Rebell:{e:"🔥",k:"Kantig, provokant, mutig",w:"Konfrontativ, mutig, kurz. Polarisiert bewusst. Unbequeme Wahrheiten ohne Weichspülen.",b:"Brav verkauft nicht."},
 };
 
-const btn=(bg,col,bor)=>({background:bg,color:col,border:bor||"none",borderRadius:25,padding:"12px 24px",fontSize:13.5,fontWeight:800,cursor:"pointer"});
-const chip=(a)=>({borderRadius:22,padding:"9px 16px",fontSize:13,cursor:"pointer",fontWeight:700,background:a?YEL:WHI,color:a?DARK:BLUE,border:`1px solid ${a?YEL:BOR}`});
-const inp={width:"100%",background:WHI,border:`1px solid ${BOR}`,borderRadius:10,color:DARK,padding:"13px 15px",fontSize:13.5,boxSizing:"border-box"};
+const SYSTEM=`Du bist der Content to Cash Creator von Brit Ortlepp. Du erstellst Leadership-Content nach dem 3x3 Content to Cash Code.
 
-const empty={branche:"",brandstatement:"",brandstory:"",e1:"",e2:"",e3:"",angebote:[],kw:"",v1:"Leader",v2:"Mentorin",vw:"",plattform:"Instagram",fmt:"beides",lernen:[]};
+ABSOLUT WICHTIGE REGEL ZU HOOKS:
+Hooks MÜSSEN auf den konkreten Eingaben des Users basieren – insbesondere auf Ebene 2 (Psychografie) und Ebene 3 (Transformation).
+NIEMALS generische Hooks schreiben. Jeden Hook DIREKT aus den echten Schmerzen, Sehnsüchten und Glaubenssätzen der Traumkundin entwickeln.
+Qualitätsprüfung: Wenn die Traumkundin den Hook liest, muss sie denken "Das bin ich – sie spricht von MIR."
+Konkrete Details aus den User-Eingaben müssen im Hook erkennbar sein.
 
-async function api(prompt,max=8000){
-  const r=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,max_tokens:max})});
+Hook-Typen die du nutzt:
+- Storytelling-Hook (Ich-Version mit konkreten Zahlen aus der Brandstory)
+- Spiegel-Hook (Traumkundin erkennt sich sofort an konkretem Detail aus Ebene 2)
+- Konfrontations-Hook (basierend auf echten Glaubenssätzen aus Ebene 2)
+- Zahl & Nutzen (mit konkreten Ergebnissen aus der Brandstory)
+- Truthbomb (basierend auf echten Schmerzpunkten aus Ebene 2)
+- Open-Loop (aus Transformation Ebene 3 – was die Traumkundin WIRKLICH will)
+
+CAPTION-REGELN:
+- Erste Zeile knallt rein – entscheidet ob weitergelesen wird
+- Emotional, konkret, klingt wie ein echter Mensch
+- Sätze dürfen lang und komplex sein – keine Stakkato-Sprache
+- Brand-Voice der Person muss durchgehend spürbar sein
+- VERBOTEN: "auf das nächste Level", "in dieser schnelllebigen Zeit", "Lass uns gemeinsam", "Mehrwert"
+- Wenn Caption-Beispiele hochgeladen wurden: exakt diesen Stil adaptieren
+- Grammatik und Rechtschreibung PERFEKT
+
+3x3 CONTENT TO CASH CODE:
+1. AUTHORITY: Expertise & Haltung zeigen – Scroll-Stopp erzeugen
+2. DEMAND: Verlangen & Verbindung wecken – Sehnsucht aktivieren
+3. CONVERSION: Kaufentscheidung herbeiführen – Einwände auflösen
+
+CONTENTPLÄNE:
+Wachstum: Authority 60% | Demand 30% | Conversion 10%
+Verbindung: Authority 30% | Demand 50% | Conversion 20%
+Launch: Authority 20% | Demand 30% | Conversion 50%
+
+REEL-VARIANTEN (IMMER BEIDE):
+A: Statischer Hook – Text auf dem Cover
+B: Talking-Head – vollständiges Sprechskript
+
+KARUSSELL: mind. 6 Slides. Slide 1 = Hook. Letzter Slide = CTA.
+STORIES: Hook → Spiegelung → Positionierung → Öffnung → Einladung
+BONUS: Kreative Bonus-Idee am Ende
+
+FORMAT:
+## GESAMTÜBERSICHT
+Tabelle: | Woche | Tag | Säule | Format | Hook-Vorschau |
+
+## WOCHE X
+### [Tag] – [Säule] – [Format]
+**HOOK STATISCH:** ...
+**HOOK TALKING:** ...
+**REEL/KARUSSELL INHALT:** ...
+**CAPTION:** [emotional, lang, klingt wie Mensch]
+**CTA:** ...
+**KEYWORDS:** ...
+**MUSIK:** ...
+
+## HOOK-BANK
+[8 Hooks – alle direkt aus den User-Eingaben entwickelt]
+
+## BONUS-IDEE
+[Kreative ausgefallene Idee]
+
+Schreibe auf Deutsch, in du-Form. Brand-Voice konsequent. Grammatik perfekt.`;
+
+async function api(prompt,max=8000,images=[]){
+  const msgs=[{role:"user",content:images.length>0?[...images.map(img=>({type:"image",source:{type:"base64",media_type:img.type,data:img.data}})),{type:"text",text:prompt}]:prompt}];
+  const r=await fetch("/api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,max_tokens:max,messages:msgs,has_images:images.length>0})});
   if(!r.ok) throw new Error("Fehler "+r.status);
   const d=await r.json();
   if(d.error) throw new Error(d.error);
   return d.text||"";
 }
 
-function IN({val,set,ph,sty={}}){return React.createElement("input",{value:val,onChange:e=>set(e.target.value),placeholder:ph,style:{...inp,...sty}})}
-function TA({val,set,ph,rows=3}){return React.createElement("textarea",{value:val,onChange:e=>set(e.target.value),placeholder:ph,rows,style:{...inp,resize:"vertical",lineHeight:1.6}})}
-function Chip({on,active,children}){return React.createElement("button",{onClick:on,style:chip(active)},children)}
+const s_btn=(bg,col,bor)=>({background:bg,color:col,border:bor||"none",borderRadius:25,padding:"12px 24px",fontSize:14,fontWeight:800,cursor:"pointer",transition:"opacity .2s"});
+const s_chip=(a)=>({borderRadius:22,padding:"9px 16px",fontSize:13,cursor:"pointer",fontWeight:700,background:a?YEL:WHI,color:a?DARK:BLUE,border:`1px solid ${a?YEL:BOR}`,transition:"all .15s"});
+const s_inp={width:"100%",background:WHI,border:`1px solid ${BOR}`,borderRadius:10,color:DARK,padding:"13px 15px",fontSize:16,boxSizing:"border-box"};
+
+const empty={branche:"",brandstatement:"",brandstory:"",e1:"",e2:"",e3:"",angebote:[],kw:"",v1:"Leader",v2:"Mentorin",vw:"",plattform:"Instagram",fmt:"beides",lernen:[],captionImages:[]};
+
+function Toast({msg,onDone}){
+  useEffect(()=>{const t=setTimeout(onDone,2500);return()=>clearTimeout(t);},[]);
+  return React.createElement("div",{className:"toast"},"✓ "+msg);
+}
+
+function IN({val,set,ph,sty={},rows}){
+  if(rows) return React.createElement("textarea",{value:val,onChange:e=>set(e.target.value),placeholder:ph,rows,style:{...s_inp,resize:"vertical",lineHeight:1.6,...sty}});
+  return React.createElement("input",{value:val,onChange:e=>set(e.target.value),placeholder:ph,style:{...s_inp,...sty}});
+}
+function Chip({on,active,children}){return React.createElement("button",{onClick:on,style:s_chip(active)},children)}
 function Grp({label,err,children}){
   return React.createElement("div",{style:{marginBottom:20}},
     React.createElement("label",{style:{display:"block",color:err?"#c0392b":BLUE,fontSize:11,letterSpacing:1.5,textTransform:"uppercase",marginBottom:8,fontWeight:700}},label),
     children,
     err&&React.createElement("div",{style:{color:"#c0392b",fontSize:12,marginTop:6}},"⚠️ "+err)
-  )
+  );
 }
 
 function App(){
@@ -72,6 +159,7 @@ function App(){
   const [p,setP]=useState(empty);
   const [saved,setSaved]=useState(false);
   const [err,setErr]=useState({});
+  const [toast,setToast]=useState(null);
   const [gen,setGen]=useState({days:3,stories:5,weeks:4,goal:"Wachstum",theme:"",sel:[]});
   const [newA,setNewA]=useState({name:"",desc:"",price:""});
   const [loading,setLoading]=useState(false);
@@ -82,9 +170,23 @@ function App(){
 
   const up=(k,v)=>setP(x=>({...x,[k]:v}));
   const ug=(k,v)=>setGen(x=>({...x,[k]:v}));
+  const showToast=msg=>setToast(msg);
+
+  // Profil-Key basierend auf User-Email
+  const profileKey=useCallback(email=>"ctc_p5_"+email.replace(/[^a-z0-9]/gi,"_"),[]);
 
   useEffect(()=>{
-    try{const s=localStorage.getItem("ctc_u");if(s){const u=JSON.parse(s);setUser(u);loadP(u.email);setView("home");}}catch(e){}
+    try{
+      const s=localStorage.getItem("ctc_user_v2");
+      if(s){
+        const u=JSON.parse(s);
+        setUser(u);
+        const pk=profileKey(u.email);
+        const ps=localStorage.getItem(pk);
+        if(ps){setP(JSON.parse(ps));setSaved(true);}
+        setView("home");
+      }
+    }catch(e){}
   },[]);
 
   useEffect(()=>{
@@ -98,20 +200,23 @@ function App(){
     return()=>clearTimeout(t);
   },[view]);
 
-  const loadP=email=>{
-    const k="ctc_p_"+email.replace(/[^a-z0-9]/gi,"_");
-    const s=localStorage.getItem(k);
-    if(s){setP(JSON.parse(s));setSaved(true);}
-  };
-
   const onLogin=res=>{
-    const pl=JSON.parse(atob(res.credential.split(".")[1]));
-    const u={name:pl.name,email:pl.email,picture:pl.picture};
-    setUser(u);localStorage.setItem("ctc_u",JSON.stringify(u));
-    loadP(u.email);setView("home");
+    try{
+      const pl=JSON.parse(atob(res.credential.split(".")[1]));
+      const u={name:pl.name,email:pl.email,picture:pl.picture};
+      setUser(u);
+      localStorage.setItem("ctc_user_v2",JSON.stringify(u));
+      const pk=profileKey(u.email);
+      const ps=localStorage.getItem(pk);
+      if(ps){setP(JSON.parse(ps));setSaved(true);}
+      setView("home");
+    }catch(e){console.error(e);}
   };
 
-  const logout=()=>{setUser(null);setView("login");setSaved(false);setP(empty);localStorage.removeItem("ctc_u");};
+  const logout=()=>{
+    setUser(null);setView("login");setSaved(false);setP(empty);
+    localStorage.removeItem("ctc_user_v2");
+  };
 
   const validate=()=>{
     const e={};
@@ -121,14 +226,22 @@ function App(){
     if(!p.e2.trim()) e.e2="Pflichtfeld";
     if(!p.e3.trim()) e.e3="Pflichtfeld";
     if(p.angebote.length===0) e.angebote="Mindestens 1 Angebot";
-    setErr(e);return Object.keys(e).length===0;
+    setErr(e);
+    return Object.keys(e).length===0;
   };
 
-  const saveP=()=>{
-    if(!validate()){setTab(0);return;}
-    const k="ctc_p_"+user.email.replace(/[^a-z0-9]/gi,"_");
-    localStorage.setItem(k,JSON.stringify(p));
-    setSaved(true);setView("home");
+  const saveP=(silent=false)=>{
+    if(!validate()){setTab(0);return false;}
+    if(!user){showToast("Bitte zuerst einloggen");return false;}
+    try{
+      const pk=profileKey(user.email);
+      const toSave={...p,captionImages:[]};// Bilder nicht im localStorage – zu groß
+      localStorage.setItem(pk,JSON.stringify(toSave));
+      setSaved(true);
+      if(!silent){showToast("Profil gespeichert ✓");setView("home");}
+      else showToast("Zwischenstand gespeichert ✓");
+      return true;
+    }catch(e){showToast("Fehler beim Speichern");return false;}
   };
 
   const addA=()=>{
@@ -143,6 +256,33 @@ function App(){
     if(!lt.trim()) return;
     up("lernen",[...p.lernen,{id:Date.now(),label:ll||"Caption",text:lt}]);
     setLt("");setLl("");
+    showToast("Caption gespeichert");
+  };
+
+  // Bild-Upload für Caption-Stil
+  const handleImgUpload=async(e)=>{
+    const files=Array.from(e.target.files);
+    if(!files.length) return;
+    showToast("Bilder werden verarbeitet...");
+    const imgs=await Promise.all(files.map(f=>new Promise((res,rej)=>{
+      const reader=new FileReader();
+      reader.onload=ev=>{
+        const base64=ev.target.result.split(",")[1];
+        res({data:base64,type:f.type||"image/jpeg",name:f.name});
+      };
+      reader.onerror=rej;
+      reader.readAsDataURL(f);
+    })));
+    // Caption-Stil analysieren
+    try{
+      const analysis=await api(
+        "Analysiere den Schreibstil dieser Caption-Screenshots. Beschreibe in 3-5 Sätzen: Satzbau, Tonalität, typische Formulierungen, Länge, emotionale Qualität. Nutze diese Analyse später für Content-Erstellung.",
+        500,imgs
+      );
+      up("captionStyle",analysis);
+      up("captionImages",imgs.map(i=>i.name));
+      showToast("Stil analysiert und gespeichert ✓");
+    }catch(e){showToast("Bilder gespeichert (Analyse später)");}
   };
 
   const sugKW=async()=>{
@@ -156,80 +296,78 @@ function App(){
     if(!c.includes(kw)) up("kw",[...c,kw].join(", "));
   };
 
-  const pC=p.branche&&p.brandstatement&&p.brandstory&&p.e2&&p.e3&&p.angebote.length>0;
+  // profileComplete – prüft alle Pflichtfelder
+  const pC=!!(p.branche&&p.branche.trim()&&p.brandstatement&&p.brandstatement.trim()&&p.brandstory&&p.brandstory.trim()&&p.e2&&p.e2.trim()&&p.e3&&p.e3.trim()&&p.angebote&&p.angebote.length>0);
 
   const generate=async()=>{
-    if(!pC){setView("profile");return;}
+    if(!pC){showToast("Bitte zuerst Profil vervollständigen");setView("profile");return;}
     setLoading(true);setView("result");setResult("");
     const sel=p.angebote.filter(a=>gen.sel.includes(a.id));
     const ang=(sel.length>0?sel:p.angebote).map(a=>`- ${a.name}${a.price?" ("+a.price+")":""}${a.desc?": "+a.desc:""}`).join("\n");
-    const lc=p.lernen.length>0?"\n\nMEINE CAPTION-BEISPIELE:\n"+p.lernen.map(l=>l.text).join("\n---\n"):"";
+    const lc=p.lernen.length>0?"\n\nMEINE EIGENEN CAPTION-BEISPIELE (adaptiere diesen Stil):\n"+p.lernen.map(l=>"--- "+l.label+" ---\n"+l.text).join("\n\n"):"";
+    const cs=p.captionStyle?"\n\nANALYSE MEINES CAPTION-STILS (aus hochgeladenen Screenshots):\n"+p.captionStyle:"";
+
     const prompt=[
-      "Erstelle Content-Plan nach dem 3x3 Content to Cash Code.","",
-      "PROFIL:","Branche: "+p.branche,"Brand-Statement: "+p.brandstatement,"Brandstory: "+p.brandstory,"",
-      "TRAUMKUNDIN:","Ebene 1: "+(p.e1||"-"),"Ebene 2 (HAUPTQUELLE Hooks): "+p.e2,"Ebene 3 (HAUPTQUELLE Hooks): "+p.e3,"",
-      "ANGEBOTE:",ang,"",
-      "VOICE:","Haupt: "+p.v1+" - "+VOICES[p.v1]?.w,"2.: "+p.v2+" - "+VOICES[p.v2]?.w,"Phrasen: "+(p.vw||"-"),"",
-      "Keywords: "+(p.kw||"-"),"Format: "+p.fmt,"Plattform: "+p.plattform,"",
-      "Wochen: "+gen.weeks,"Feed/Woche: "+gen.days+"x","Stories/Woche: "+gen.stories+"x","Ziel: "+gen.goal,
-      gen.theme?"Thema: "+gen.theme:"",lc
+      "Erstelle einen vollständigen Content-Plan nach dem 3x3 Content to Cash Code.",
+      "WICHTIG: Entwickle ALLE Hooks direkt aus den unten stehenden Profil-Eingaben. Keine generischen Hooks!",
+      "","PROFIL:",
+      "Branche: "+p.branche,
+      "Brand-Statement: "+p.brandstatement,
+      "Brandstory: "+p.brandstory,
+      "","TRAUMKUNDIN:",
+      "Ebene 1 (nur Format-Kontext): "+(p.e1||"-"),
+      "Ebene 2 – Psychografie (HAUPTQUELLE für alle Hooks und Captions): "+p.e2,
+      "Ebene 3 – Transformation (HAUPTQUELLE für alle Hooks und Captions): "+p.e3,
+      "","ANGEBOTE:",ang,
+      "","VOICE:",
+      "Haupt-Voice: "+p.v1+" – "+VOICES[p.v1]?.w,
+      "2. Voice: "+p.v2+" – "+VOICES[p.v2]?.w,
+      "Typische Phrasen: "+(p.vw||"-"),
+      "","Keywords: "+(p.kw||"-"),
+      "Format-Präferenz: "+p.fmt,
+      "Plattform: "+p.plattform,
+      "","Zeitraum: "+gen.weeks+" Woche(n)",
+      "Feed-Posts/Woche: "+gen.days+"x",
+      "Stories/Woche: "+gen.stories+"x",
+      "Content-Ziel: "+gen.goal,
+      gen.theme?"Schwerpunkt-Thema: "+gen.theme:"",
+      lc,cs
     ].filter(Boolean).join("\n");
+
     try{const t=await api(prompt);setResult(t);}catch(e){setResult("Fehler: "+e.message);}
     setLoading(false);
   };
 
-  const copy=()=>{navigator.clipboard.writeText(result);setCopied(true);setTimeout(()=>setCopied(false),2000);};
+  const copyAll=()=>{navigator.clipboard.writeText(result);setCopied(true);setTimeout(()=>setCopied(false),2000);showToast("Kopiert!");};
   const dlTxt=()=>{const b=new Blob([result],{type:"text/plain"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download="content-plan.txt";a.click();URL.revokeObjectURL(u);};
 
   const tabs=["🏢 Basics","👩 Traumkundin","💎 Angebote","🎤 Voice","📚 Lernen"];
 
-  const header=React.createElement("header",{style:{background:BLUE,padding:"14px 24px",display:"flex",alignItems:"center",gap:16,boxShadow:"0 2px 12px rgba(0,0,0,.15)"}},
-    React.createElement("img",{src:LOGO,alt:"Logo",style:{height:36,filter:"brightness(10)",objectFit:"contain"}}),
-    React.createElement("div",{style:{flex:1}},React.createElement("div",{style:{color:YEL,fontSize:11,letterSpacing:3,textTransform:"uppercase",fontWeight:700}},"Content to Cash Creator")),
-    user&&React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
-      React.createElement("img",{src:user.picture,style:{width:32,height:32,borderRadius:"50%",border:`2px solid ${YEL}`}}),
-      React.createElement("span",{style:{color:WHI,fontSize:13,fontWeight:600}},user.name.split(" ")[0]),
-      view!=="home"&&React.createElement("button",{onClick:()=>setView("home"),style:{background:"transparent",color:WHI,border:"1px solid rgba(255,255,255,.4)",borderRadius:20,padding:"7px 14px",cursor:"pointer"}},"🏠"),
-      React.createElement("button",{onClick:logout,style:{background:"transparent",color:WHI,border:"1px solid rgba(255,255,255,.4)",borderRadius:20,padding:"7px 14px",cursor:"pointer"}},"Logout")
-    )
-  );
-
-  const footer=React.createElement("footer",{style:{background:BLUE,color:"rgba(255,255,255,.8)",padding:"32px 24px",marginTop:"auto"}},
-    React.createElement("div",{style:{maxWidth:820,margin:"0 auto"}},
-      React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:24,marginBottom:24}},
-        React.createElement("div",null,
-          React.createElement("img",{src:LOGO,style:{height:28,filter:"brightness(10)",marginBottom:12}}),
-          React.createElement("p",{style:{fontSize:12,lineHeight:1.7}},"Content to Cash Creator – KI-Tool für Leadership-Content nach dem 3x3 Content to Cash Code.")
-        ),
-        React.createElement("div",null,
-          React.createElement("div",{style:{fontWeight:700,marginBottom:10,color:WHI,fontSize:13}},"Kontakt"),
-          React.createElement("div",{style:{fontSize:12,lineHeight:2}},
-            React.createElement("div",null,"Brit Ortlepp"),
-            React.createElement("div",null,"Kaspar-Lang-Str. 25"),
-            React.createElement("div",null,"91334 Hemhofen"),
-            React.createElement("a",{href:"mailto:hallo@britortlepp.de",style:{color:YEL}},"hallo@britortlepp.de")
-          )
-        ),
-        React.createElement("div",null,
-          React.createElement("div",{style:{fontWeight:700,marginBottom:10,color:WHI,fontSize:13}},"Rechtliches"),
-          React.createElement("div",{style:{fontSize:12,lineHeight:2}},
-            React.createElement("a",{href:"https://britortlepp.de/impressum/",target:"_blank",style:{color:"rgba(255,255,255,.8)",display:"block"}},"Impressum"),
-            React.createElement("a",{href:"https://britortlepp.de/datenschutz/",target:"_blank",style:{color:"rgba(255,255,255,.8)",display:"block"}},"Datenschutz"),
-            React.createElement("a",{href:"https://britortlepp.de/agb/",target:"_blank",style:{color:"rgba(255,255,255,.8)",display:"block"}},"AGB")
-          )
-        )
-      ),
-      React.createElement("div",{style:{borderTop:"1px solid rgba(255,255,255,.2)",paddingTop:16,fontSize:11,textAlign:"center"}},"© 2025 Brit Ortlepp · Content to Cash Creator · Alle Rechte vorbehalten")
-    )
-  );
-
   return React.createElement("div",{style:{minHeight:"100vh",background:BG,fontFamily:"Montserrat,Arial,sans-serif",color:DARK,display:"flex",flexDirection:"column"}},
-    header,
+
+    // TOAST
+    toast&&React.createElement(Toast,{msg:toast,onDone:()=>setToast(null)}),
+
+    // HEADER
+    React.createElement("header",{style:{background:BLUE,padding:"14px 24px",display:"flex",alignItems:"center",gap:16,boxShadow:"0 2px 12px rgba(0,0,0,.15)"}},
+      React.createElement("img",{src:LOGO,alt:"Logo",style:{height:36,filter:"brightness(10)",objectFit:"contain"}}),
+      React.createElement("div",{style:{flex:1}},
+        React.createElement("div",{style:{color:YEL,fontSize:11,letterSpacing:3,textTransform:"uppercase",fontWeight:700}},"Content to Cash Creator")
+      ),
+      user&&React.createElement("div",{style:{display:"flex",alignItems:"center",gap:10}},
+        React.createElement("img",{src:user.picture,style:{width:32,height:32,borderRadius:"50%",border:`2px solid ${YEL}`}}),
+        React.createElement("span",{style:{color:WHI,fontSize:13,fontWeight:600}},user.name.split(" ")[0]),
+        view!=="home"&&React.createElement("button",{onClick:()=>setView("home"),style:{background:"transparent",color:WHI,border:"1px solid rgba(255,255,255,.4)",borderRadius:20,padding:"7px 14px",cursor:"pointer",fontSize:13}},"🏠"),
+        React.createElement("button",{onClick:logout,style:{background:"transparent",color:WHI,border:"1px solid rgba(255,255,255,.4)",borderRadius:20,padding:"7px 14px",cursor:"pointer",fontSize:13}},"Logout")
+      )
+    ),
+
+    // MAIN
     React.createElement("main",{style:{flex:1,maxWidth:820,margin:"0 auto",width:"100%",padding:"28px 18px 40px"}},
 
       // LOGIN
       view==="login"&&React.createElement("div",{style:{textAlign:"center",paddingTop:32}},
-        React.createElement("img",{src:FRING,style:{width:260,height:360,objectFit:"cover",borderRadius:20,boxShadow:"0 8px 40px rgba(0,0,0,.15)",marginBottom:28}}),
+        React.createElement("img",{src:FRING,alt:"Brit",className:"login-img",style:{width:260,height:360,objectFit:"cover",borderRadius:20,boxShadow:"0 8px 40px rgba(0,0,0,.15)",marginBottom:28}}),
         React.createElement("h1",{style:{fontSize:26,fontWeight:900,marginBottom:8,color:BLUE}},"Content to Cash Creator"),
         React.createElement("p",{style:{color:MID,fontSize:14,marginBottom:8,maxWidth:400,margin:"0 auto 8px"}},"Dein KI-Tool für Leadership-Content nach dem 3x3 Content to Cash Code"),
         React.createElement("p",{style:{color:BLUE,fontWeight:700,marginBottom:32}},"by Brit Ortlepp"),
@@ -242,23 +380,26 @@ function App(){
 
       // HOME
       view==="home"&&React.createElement("div",null,
-        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:24,alignItems:"center"}},
+        React.createElement("div",{className:"grid2",style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:24,alignItems:"center"}},
           React.createElement("div",null,
             React.createElement("h1",{style:{fontSize:24,fontWeight:900,marginBottom:8,color:DARK}},"Content to Cash Creator"),
             React.createElement("p",{style:{color:MID,fontSize:13,lineHeight:1.7,marginBottom:20}},"Erstelle Leadership-Content der verkauft – nach dem 3x3 Content to Cash Code von Brit Ortlepp."),
             React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:10}},
-              React.createElement("button",{onClick:()=>pC?setView("generate"):setView("profile"),style:{...btn(pC?YEL:BLUE,pC?DARK:WHI),padding:"14px",fontSize:14}},pC?"✨ Content erstellen →":"👤 Profil anlegen →"),
-              React.createElement("button",{onClick:()=>setView("profile"),style:{...btn("transparent",BLUE,`1px solid ${BLUE}`),padding:"12px"}},"👤 "+(saved?"Profil bearbeiten":"Profil anlegen"))
+              // NUR EIN Button – je nach Status
+              pC
+                ? React.createElement("button",{onClick:()=>setView("generate"),style:{...s_btn(YEL,DARK),padding:"14px",fontSize:14,width:"100%"}},"✨ Content erstellen →")
+                : React.createElement("button",{onClick:()=>setView("profile"),style:{...s_btn(BLUE,WHI),padding:"14px",fontSize:14,width:"100%"}},"👤 Profil anlegen →"),
+              // Profil bearbeiten nur wenn gespeichert
+              saved&&React.createElement("button",{onClick:()=>setView("profile"),style:{...s_btn("transparent",BLUE,`1px solid ${BLUE}`),padding:"12px",width:"100%"}},"✏️ Profil bearbeiten")
             )
           ),
-          React.createElement("img",{src:FRING,style:{width:"100%",height:320,objectFit:"cover",objectPosition:"top",borderRadius:20,boxShadow:"0 8px 32px rgba(0,0,0,.12)"}})
+          React.createElement("img",{src:FRING,alt:"Brit",className:"home-img",style:{width:"100%",height:320,objectFit:"cover",objectPosition:"top",borderRadius:20,boxShadow:"0 8px 32px rgba(0,0,0,.12)"}})
         ),
         React.createElement("div",{style:{background:BLUE,borderRadius:16,padding:24,color:WHI}},
           React.createElement("div",{style:{fontWeight:800,fontSize:14,marginBottom:16,color:YEL}},"🗺️ So funktioniert dein Tool"),
-          [
-            {n:"1",t:"Profil anlegen",d:"Nische, Traumkundin, Angebote & Voice – einmalig ausfüllen",done:pC},
-            {n:"2",t:"Content erstellen",d:"Einstellungen wählen → KI generiert deinen Plan"},
-            {n:"3",t:"Exportieren & nutzen",d:"Als .txt herunterladen → direkt auf Instagram posten"},
+          [{n:"1",t:"Profil anlegen",d:"Nische, Traumkundin, Angebote & Voice – einmalig ausfüllen",done:pC},
+           {n:"2",t:"Content erstellen",d:"Einstellungen wählen → KI generiert deinen Plan"},
+           {n:"3",t:"Exportieren & nutzen",d:"Als .txt herunterladen → direkt auf Instagram posten"},
           ].map((s,i)=>React.createElement("div",{key:i,style:{display:"flex",gap:12,marginBottom:i<2?14:0,alignItems:"center"}},
             React.createElement("div",{style:{width:28,height:28,borderRadius:"50%",background:s.done?"#27ae60":YEL,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,color:DARK,fontSize:13,flexShrink:0}},s.done?"✓":s.n),
             React.createElement("div",null,
@@ -273,28 +414,28 @@ function App(){
       view==="profile"&&React.createElement("div",null,
         React.createElement("h2",{style:{fontSize:20,fontWeight:900,marginBottom:4,color:BLUE}},"👤 Dein Profil"),
         React.createElement("p",{style:{color:MID,fontSize:13,marginBottom:20}},"Einmal ausfüllen – dauerhaft gespeichert unter deinem Google-Account."),
-        React.createElement("div",{style:{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap"}},
-          tabs.map((t,i)=>React.createElement("button",{key:i,onClick:()=>setTab(i),style:{...chip(tab===i),fontSize:12}},t))
+        React.createElement("div",{className:"tabs-wrap",style:{display:"flex",gap:6,marginBottom:24,flexWrap:"wrap"}},
+          tabs.map((t,i)=>React.createElement("button",{key:i,onClick:()=>setTab(i),style:{...s_chip(tab===i),fontSize:12}},t))
         ),
 
         tab===0&&React.createElement("div",null,
-          React.createElement(Grp,{label:"🏢 Branche & Nische *",err:err.branche},React.createElement(TA,{val:p.branche,set:v=>up("branche",v),ph:"z.B. Business-Coach für selbstständige Frauen...",rows:2})),
+          React.createElement(Grp,{label:"🏢 Branche & Nische *",err:err.branche},React.createElement(IN,{val:p.branche,set:v=>up("branche",v),ph:"z.B. Business-Coach für selbstständige Frauen...",rows:2})),
           React.createElement(Grp,{label:"💬 Brand-Statement *",err:err.brandstatement},React.createElement(IN,{val:p.brandstatement,set:v=>up("brandstatement",v),ph:"Ich helfe [Zielgruppe], [Ergebnis] zu erreichen."})),
-          React.createElement(Grp,{label:"📖 Brandstory *",err:err.brandstory},React.createElement(TA,{val:p.brandstory,set:v=>up("brandstory",v),ph:"Mein Weg, Wendepunkt, Mission, Werte...",rows:5})),
+          React.createElement(Grp,{label:"📖 Brandstory *",err:err.brandstory},React.createElement(IN,{val:p.brandstory,set:v=>up("brandstory",v),ph:"Mein Weg, Wendepunkt, Mission, Werte...",rows:5})),
           React.createElement(Grp,{label:"📱 Plattform"},React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},["Instagram","TikTok","LinkedIn","Instagram + TikTok"].map(x=>React.createElement(Chip,{key:x,on:()=>up("plattform",x),active:p.plattform===x},x)))),
           React.createElement(Grp,{label:"🎬 Format-Präferenz"},React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},["überwiegend Reels","überwiegend Karussell","beides gleich"].map(x=>React.createElement(Chip,{key:x,on:()=>up("fmt",x),active:p.fmt===x},x))))
         ),
 
         tab===1&&React.createElement("div",null,
-          React.createElement("div",{style:{background:"#e8f4e8",border:"1px solid #27ae60",borderRadius:12,padding:"12px 16px",marginBottom:20,fontSize:13}},"💡 Ebene 2 & 3 sind die Basis deiner Hooks!"),
-          React.createElement(Grp,{label:"Ebene 1 – Oberfläche"},React.createElement(TA,{val:p.e1,set:v=>up("e1",v),ph:"Alter, Beruf, Familienstatus...",rows:3})),
-          React.createElement(Grp,{label:"Ebene 2 – Psychografie * (Hauptquelle Hooks)",err:err.e2},React.createElement(TA,{val:p.e2,set:v=>up("e2",v),ph:"Werte, Ängste, Glaubenssätze, Sehnsüchte...",rows:6})),
-          React.createElement(Grp,{label:"Ebene 3 – Transformation * (Hauptquelle Hooks)",err:err.e3},React.createElement(TA,{val:p.e3,set:v=>up("e3",v),ph:"Identity Shift, Wunschergebnis, Einwände...",rows:6})),
+          React.createElement("div",{style:{background:"#e8f4e8",border:"1px solid #27ae60",borderRadius:12,padding:"12px 16px",marginBottom:20,fontSize:13}},"💡 Ebene 2 & 3 sind die Basis aller Hooks – je detaillierter, desto besser!"),
+          React.createElement(Grp,{label:"Ebene 1 – Oberfläche (Demografie)"},React.createElement(IN,{val:p.e1,set:v=>up("e1",v),ph:"Alter, Beruf, Familienstatus...",rows:3})),
+          React.createElement(Grp,{label:"Ebene 2 – Psychografie * (Hauptquelle Hooks)",err:err.e2},React.createElement(IN,{val:p.e2,set:v=>up("e2",v),ph:"Werte, Ängste, Glaubenssätze, Sehnsüchte, was sie denkt aber nicht ausspricht...",rows:7})),
+          React.createElement(Grp,{label:"Ebene 3 – Transformation * (Hauptquelle Hooks)",err:err.e3},React.createElement(IN,{val:p.e3,set:v=>up("e3",v),ph:"Identity Shift, Wunschergebnis, Einwände, warum JETZT...",rows:7})),
           React.createElement(Grp,{label:"🔑 Keywords"},
-            React.createElement(IN,{val:p.kw,set:v=>up("kw",v),ph:"Kommagetrennt: Leadership-Content, Traumkundin..."}),
+            React.createElement(IN,{val:p.kw,set:v=>up("kw",v),ph:"Kommagetrennt..."}),
             React.createElement("div",{style:{display:"flex",gap:8,marginTop:10,flexWrap:"wrap",alignItems:"center"}},
-              React.createElement("button",{onClick:sugKW,disabled:kwL,style:{...btn("transparent",BLUE,`1px solid ${BLUE}`),padding:"8px 14px",fontSize:12}},kwL?"⏳ Laden...":"✨ Keywords vorschlagen"),
-              kwSug.map(kw=>React.createElement("button",{key:kw,onClick:()=>addKW(kw),style:{...chip(false),fontSize:11,padding:"6px 12px"}},"+"+kw))
+              React.createElement("button",{onClick:sugKW,disabled:kwL,style:{...s_btn("transparent",BLUE,`1px solid ${BLUE}`),padding:"8px 14px",fontSize:12}},kwL?"⏳ Laden...":"✨ Keywords vorschlagen"),
+              kwSug.map(kw=>React.createElement("button",{key:kw,onClick:()=>addKW(kw),style:{...s_chip(false),fontSize:11,padding:"6px 12px"}},"+"+kw))
             )
           )
         ),
@@ -302,96 +443,132 @@ function App(){
         tab===2&&React.createElement("div",null,
           err.angebote&&React.createElement("div",{style:{color:"#c0392b",marginBottom:12,fontSize:13}},"⚠️ "+err.angebote),
           p.angebote.map(a=>React.createElement("div",{key:a.id,style:{background:WHI,borderRadius:10,padding:"12px 14px",marginBottom:8,display:"flex",justifyContent:"space-between",border:`1px solid ${BOR}`}},
-            React.createElement("div",null,React.createElement("b",null,a.name),a.price&&React.createElement("span",{style:{color:BLUE,fontSize:12}}," · "+a.price),a.desc&&React.createElement("div",{style:{fontSize:12,color:MID}},a.desc)),
-            React.createElement("button",{onClick:()=>up("angebote",p.angebote.filter(x=>x.id!==a.id)),style:{background:"none",border:"none",color:"#c0392b",cursor:"pointer",fontSize:20}},"×")
+            React.createElement("div",null,
+              React.createElement("b",null,a.name),
+              a.price&&React.createElement("span",{style:{color:BLUE,fontSize:12}}," · "+a.price),
+              a.desc&&React.createElement("div",{style:{fontSize:12,color:MID,marginTop:2}},a.desc)
+            ),
+            React.createElement("button",{onClick:()=>up("angebote",p.angebote.filter(x=>x.id!==a.id)),style:{background:"none",border:"none",color:"#c0392b",cursor:"pointer",fontSize:20,padding:"0 0 0 10px"}},"×")
           )),
-          React.createElement("div",{style:{background:WHI,borderRadius:12,padding:16,border:`1px dashed ${BOR}`}},
+          React.createElement("div",{style:{background:WHI,borderRadius:12,padding:16,border:`1px dashed ${BOR}`,marginTop:8}},
+            React.createElement("div",{style:{fontSize:12,color:BLUE,fontWeight:700,marginBottom:12,letterSpacing:1}},"+ NEUES ANGEBOT"),
             React.createElement(IN,{val:newA.name,set:v=>setNewA(x=>({...x,name:v})),ph:"Name des Angebots"}),
             React.createElement(IN,{val:newA.price,set:v=>setNewA(x=>({...x,price:v})),ph:"Preis (optional)",sty:{marginTop:8}}),
-            React.createElement(IN,{val:newA.desc,set:v=>setNewA(x=>({...x,desc:v})),ph:"Beschreibung (optional)",sty:{marginTop:8}}),
-            React.createElement("button",{onClick:addA,style:{...btn(YEL,DARK),marginTop:12,fontSize:13,padding:"10px 20px"}},"+ Angebot hinzufügen")
+            React.createElement(IN,{val:newA.desc,set:v=>setNewA(x=>({...x,desc:v})),ph:"Kurze Beschreibung (optional)",sty:{marginTop:8}}),
+            React.createElement("button",{onClick:addA,style:{...s_btn(YEL,DARK),marginTop:12,fontSize:13,padding:"10px 20px"}},"+ Angebot hinzufügen")
           )
         ),
 
         tab===3&&React.createElement("div",null,
           React.createElement(Grp,{label:"🎤 Haupt-Voice *"},
             React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
-              Object.entries(VOICES).map(([n,v])=>React.createElement("div",{key:n,onClick:()=>up("v1",n),style:{background:p.v1===n?YEL:WHI,border:`2px solid ${p.v1===n?YEL:BOR}`,borderRadius:12,padding:14,cursor:"pointer"}},
-                React.createElement("div",{style:{fontSize:20,marginBottom:4}},v.e),
+              Object.entries(VOICES).map(([n,v])=>React.createElement("div",{key:n,onClick:()=>up("v1",n),style:{background:p.v1===n?YEL:WHI,border:`2px solid ${p.v1===n?YEL:BOR}`,borderRadius:12,padding:14,cursor:"pointer",transition:"all .15s"}},
+                React.createElement("div",{style:{fontSize:22,marginBottom:4}},v.e),
                 React.createElement("div",{style:{fontWeight:800,fontSize:13}},n),
-                React.createElement("div",{style:{fontSize:11,color:MID}},v.k)
+                React.createElement("div",{style:{fontSize:11,color:MID}},v.k),
+                React.createElement("div",{style:{fontSize:10,color:"#888",fontStyle:"italic",marginTop:4}},'"'+v.b+'"')
               ))
             )
           ),
           React.createElement(Grp,{label:"🎤 2. Voice (ergänzend)"},
             React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}},
-              Object.entries(VOICES).map(([n,v])=>React.createElement("div",{key:n,onClick:()=>up("v2",n),style:{background:p.v2===n?"#dce8ed":WHI,border:`2px solid ${p.v2===n?BLUE:BOR}`,borderRadius:12,padding:14,cursor:"pointer",opacity:p.v1===n?.35:1}},
-                React.createElement("div",{style:{fontSize:20,marginBottom:4}},v.e),
+              Object.entries(VOICES).map(([n,v])=>React.createElement("div",{key:n,onClick:()=>up("v2",n),style:{background:p.v2===n?"#dce8ed":WHI,border:`2px solid ${p.v2===n?BLUE:BOR}`,borderRadius:12,padding:14,cursor:"pointer",opacity:p.v1===n?.35:1,transition:"all .15s"}},
+                React.createElement("div",{style:{fontSize:22,marginBottom:4}},v.e),
                 React.createElement("div",{style:{fontWeight:800,fontSize:13}},n),
                 React.createElement("div",{style:{fontSize:11,color:MID}},v.k)
               ))
             )
           ),
-          React.createElement(Grp,{label:"✍️ Typische Wörter & Phrasen"},React.createElement(TA,{val:p.vw,set:v=>up("vw",v),ph:"Was du nutzt und was du NIE schreibst...",rows:3}))
+          React.createElement(Grp,{label:"✍️ Typische Wörter & Phrasen"},React.createElement(IN,{val:p.vw,set:v=>up("vw",v),ph:"Was du nutzt und was du NIE schreibst...",rows:3}))
         ),
 
         tab===4&&React.createElement("div",null,
-          React.createElement("div",{style:{background:"#dce8ed",border:`1px solid ${BLUE}`,borderRadius:12,padding:"12px 16px",marginBottom:20,fontSize:13}},"🧠 Lade bearbeitete Captions hoch – das Tool lernt deinen Stil."),
-          React.createElement(Grp,{label:"Bezeichnung"},React.createElement(IN,{val:ll,set:setLl,ph:"z.B. Hook-Post vom 15.4."})),
-          React.createElement(Grp,{label:"Deine bearbeitete Caption"},React.createElement(TA,{val:lt,set:setLt,ph:"Füge deine veränderte Caption ein...",rows:5})),
-          React.createElement("button",{onClick:addL,style:{...btn(YEL,DARK),marginBottom:20}},"+ Caption speichern"),
+          React.createElement("div",{style:{background:"#dce8ed",border:`1px solid ${BLUE}`,borderRadius:12,padding:"14px 16px",marginBottom:20,fontSize:13,lineHeight:1.7}},
+            React.createElement("b",{style:{color:BLUE}},"🧠 Caption-Stil lernen: "),
+            "Lade Screenshots deiner eigenen Captions hoch – das Tool analysiert deinen Schreibstil und schreibt dann genau so."
+          ),
+          // Screenshot Upload
+          React.createElement(Grp,{label:"📸 Caption-Screenshots hochladen (optional)"},
+            React.createElement("label",{style:{display:"block",background:WHI,border:`2px dashed ${BLUE}`,borderRadius:12,padding:"20px",textAlign:"center",cursor:"pointer",color:BLUE,fontSize:13,fontWeight:600}},
+              p.captionImages&&p.captionImages.length>0
+                ? "✓ "+p.captionImages.length+" Screenshot(s) analysiert – Stil wird in Content eingebaut"
+                : "📸 Screenshots auswählen (JPG, PNG – mehrere möglich)",
+              React.createElement("input",{type:"file",accept:"image/*",multiple:true,style:{display:"none"},onChange:handleImgUpload})
+            ),
+            p.captionStyle&&React.createElement("div",{style:{background:"#e8f4e8",border:"1px solid #27ae60",borderRadius:8,padding:"10px 14px",marginTop:10,fontSize:12,color:"#1a5c1a",lineHeight:1.6}},
+              React.createElement("b",null,"Analysierter Stil: "),p.captionStyle
+            )
+          ),
+          // Texteingabe (alternativ)
+          React.createElement(Grp,{label:"✍️ Oder: Caption-Text direkt einfügen"},
+            React.createElement(IN,{val:ll,set:setLl,ph:"Bezeichnung (z.B. Hook-Post 15.4.)"}),
+            React.createElement(IN,{val:lt,set:setLt,ph:"Füge deine veränderte Caption ein...",rows:5,sty:{marginTop:8}}),
+            React.createElement("button",{onClick:addL,style:{...s_btn(YEL,DARK),marginTop:12,fontSize:13,padding:"10px 20px"}},"+ Caption speichern")
+          ),
           p.lernen.length>0&&React.createElement("div",null,
-            React.createElement("div",{style:{color:BLUE,fontSize:11,marginBottom:10,fontWeight:700}},"Gespeicherte Beispiele: "+p.lernen.length),
+            React.createElement("div",{style:{color:BLUE,fontSize:11,marginBottom:10,fontWeight:700,textTransform:"uppercase",letterSpacing:1}},"Gespeicherte Beispiele ("+p.lernen.length+")"),
             p.lernen.map(l=>React.createElement("div",{key:l.id,style:{background:WHI,borderRadius:10,padding:"12px",marginBottom:8,border:`1px solid ${BOR}`}},
               React.createElement("div",{style:{display:"flex",justifyContent:"space-between",marginBottom:4}},
                 React.createElement("b",{style:{fontSize:13}},l.label),
-                React.createElement("button",{onClick:()=>up("lernen",p.lernen.filter(x=>x.id!==l.id)),style:{background:"none",border:"none",color:"#c0392b",cursor:"pointer"}},"×")
+                React.createElement("button",{onClick:()=>up("lernen",p.lernen.filter(x=>x.id!==l.id)),style:{background:"none",border:"none",color:"#c0392b",cursor:"pointer",fontSize:18}},"×")
               ),
               React.createElement("div",{style:{fontSize:12,color:MID}},l.text.slice(0,100)+(l.text.length>100?"...":""))
             ))
           )
         ),
 
-        React.createElement("div",{style:{marginTop:24,display:"flex",gap:10}},
-          tab>0&&React.createElement("button",{onClick:()=>setTab(t=>t-1),style:btn("transparent",BLUE,`1px solid ${BLUE}`)},"← Zurück"),
-          tab<tabs.length-1&&React.createElement("button",{onClick:()=>setTab(t=>t+1),style:btn(YEL,DARK)},"Weiter →"),
-          tab===tabs.length-1&&React.createElement("button",{onClick:saveP,style:{...btn(YEL,DARK),flex:1}},"💾 Profil speichern")
+        // Navigation
+        React.createElement("div",{style:{marginTop:24,display:"flex",gap:10,flexWrap:"wrap"}},
+          tab>0&&React.createElement("button",{onClick:()=>setTab(t=>t-1),style:s_btn("transparent",BLUE,`1px solid ${BLUE}`)},"← Zurück"),
+          tab<tabs.length-1&&React.createElement("button",{onClick:()=>setTab(t=>t+1),style:s_btn(YEL,DARK)},"Weiter →"),
+          tab===tabs.length-1&&React.createElement("button",{onClick:()=>saveP(false),style:{...s_btn(YEL,DARK),flex:1}},"💾 Profil speichern")
         ),
-        tab<tabs.length-1&&React.createElement("button",{onClick:saveP,style:{...btn("transparent",BLUE,`1px solid ${BLUE}`),width:"100%",marginTop:10,fontSize:12}},"Zwischenspeichern")
+        tab<tabs.length-1&&React.createElement("button",{
+          onClick:()=>saveP(true),
+          style:{...s_btn("transparent",BLUE,`1px solid ${BLUE}`),width:"100%",marginTop:10,fontSize:12}
+        },"💾 Zwischenspeichern")
       ),
 
       // GENERATE
       view==="generate"&&React.createElement("div",null,
-        React.createElement("div",{style:{display:"grid",gridTemplateColumns:"1fr auto",gap:20,alignItems:"start",marginBottom:24}},
+        React.createElement("div",{className:"grid2",style:{display:"grid",gridTemplateColumns:"1fr auto",gap:20,alignItems:"start",marginBottom:24}},
           React.createElement("div",null,
             React.createElement("h2",{style:{fontSize:20,fontWeight:900,marginBottom:4,color:BLUE}},"✨ Content erstellen"),
             React.createElement("p",{style:{color:MID,fontSize:13}},"Wähle deine Einstellungen für diese Periode.")
           ),
-          React.createElement("img",{src:FGLAS,style:{width:90,height:120,objectFit:"cover",objectPosition:"top",borderRadius:12,boxShadow:"0 4px 16px rgba(0,0,0,.12)"}})
+          React.createElement("img",{src:FGLAS,alt:"Brit",className:"gen-img",style:{width:90,height:120,objectFit:"cover",objectPosition:"top",borderRadius:12,boxShadow:"0 4px 16px rgba(0,0,0,.12)"}})
         ),
         React.createElement("div",{style:{background:CARD,borderRadius:12,padding:"14px 18px",marginBottom:20,fontSize:13,border:`1px solid ${BOR}`}},
           React.createElement("b",null,p.branche),
           React.createElement("button",{onClick:()=>setView("profile"),style:{marginLeft:10,background:"none",border:"none",color:BLUE,fontSize:12,cursor:"pointer",textDecoration:"underline"}},"bearbeiten")
         ),
-        React.createElement(Grp,{label:"💎 Angebote (Mehrfachauswahl)"},
+        React.createElement(Grp,{label:"💎 Angebote auswählen (Mehrfachauswahl)"},
           React.createElement("div",{style:{display:"flex",flexDirection:"column",gap:8}},
-            p.angebote.map(a=>React.createElement("div",{key:a.id,onClick:()=>toggleA(a.id),style:{background:gen.sel.includes(a.id)?"#dce8ed":WHI,border:`2px solid ${gen.sel.includes(a.id)?BLUE:BOR}`,borderRadius:10,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12}},
+            p.angebote.map(a=>React.createElement("div",{key:a.id,onClick:()=>toggleA(a.id),style:{background:gen.sel.includes(a.id)?"#dce8ed":WHI,border:`2px solid ${gen.sel.includes(a.id)?BLUE:BOR}`,borderRadius:10,padding:"12px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,transition:"all .15s"}},
               React.createElement("div",{style:{width:20,height:20,borderRadius:4,background:gen.sel.includes(a.id)?BLUE:"transparent",border:`2px solid ${gen.sel.includes(a.id)?BLUE:BOR}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,color:WHI,flexShrink:0}},gen.sel.includes(a.id)?"✓":""),
-              React.createElement("div",null,React.createElement("b",null,a.name),a.price&&React.createElement("span",{style:{color:BLUE,fontSize:12}}," · "+a.price))
+              React.createElement("div",null,
+                React.createElement("b",null,a.name),
+                a.price&&React.createElement("span",{style:{color:BLUE,fontSize:12}}," · "+a.price)
+              )
             )),
-            React.createElement("div",{style:{fontSize:12,color:"#999"}},"Nichts gewählt = alle Angebote")
+            React.createElement("div",{style:{fontSize:12,color:"#999",marginTop:4}},"Nichts gewählt = alle Angebote")
           )
         ),
-        React.createElement(Grp,{label:"📅 Zeitraum"},React.createElement("div",{style:{display:"flex",gap:8}},[1,2,4].map(w=>React.createElement(Chip,{key:w,on:()=>ug("weeks",w),active:gen.weeks===w},w+" "+(w===1?"Woche":"Wochen"))))),
+        React.createElement(Grp,{label:"📅 Zeitraum"},React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},[1,2,4].map(w=>React.createElement(Chip,{key:w,on:()=>ug("weeks",w),active:gen.weeks===w},w+" "+(w===1?"Woche":"Wochen"))))),
         React.createElement(Grp,{label:"📲 Feed-Posts / Woche"},React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},[1,2,3,4,5,6,7].map(n=>React.createElement(Chip,{key:n,on:()=>ug("days",n),active:gen.days===n},n+"x")))),
         React.createElement(Grp,{label:"📖 Stories / Woche"},React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},[0,1,2,3,5,7].map(n=>React.createElement(Chip,{key:n,on:()=>ug("stories",n),active:gen.stories===n},n+"x")))),
         React.createElement(Grp,{label:"🎯 Content-Ziel"},
           React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
             ["Wachstum","Verbindung & Vertrauen","Launch & Verkauf"].map(z=>React.createElement(Chip,{key:z,on:()=>ug("goal",z),active:gen.goal===z},z))
+          ),
+          React.createElement("div",{style:{fontSize:12,color:BLUE,marginTop:8}},
+            gen.goal==="Wachstum"?"Authority 60% | Demand 30% | Conversion 10%":
+            gen.goal==="Verbindung & Vertrauen"?"Authority 30% | Demand 50% | Conversion 20%":
+            "Authority 20% | Demand 30% | Conversion 50%"
           )
         ),
-        React.createElement(Grp,{label:"💡 Thema (optional)"},React.createElement(IN,{val:gen.theme,set:v=>ug("theme",v),ph:"z.B. Kurs-Launch im Oktober..."})),
-        React.createElement("button",{onClick:generate,style:{...btn(YEL,DARK),width:"100%",fontSize:15,padding:16,marginTop:8}},"🚀 Content für "+gen.weeks+" "+(gen.weeks===1?"Woche":"Wochen")+" erstellen!")
+        React.createElement(Grp,{label:"💡 Schwerpunkt-Thema (optional)"},React.createElement(IN,{val:gen.theme,set:v=>ug("theme",v),ph:"z.B. Kurs-Launch im Oktober..."})),
+        React.createElement("button",{onClick:generate,style:{...s_btn(YEL,DARK),width:"100%",fontSize:15,padding:16,marginTop:8}},"🚀 Content für "+gen.weeks+" "+(gen.weeks===1?"Woche":"Wochen")+" erstellen!")
       ),
 
       // RESULT
@@ -399,7 +576,7 @@ function App(){
         loading?React.createElement("div",{style:{textAlign:"center",padding:"60px 0"}},
           React.createElement("img",{src:FGLAS,style:{width:80,height:80,borderRadius:"50%",objectFit:"cover",objectPosition:"top",marginBottom:16}}),
           React.createElement("div",{style:{fontWeight:800,fontSize:18,marginBottom:8,color:BLUE}},"Dein Content wird erstellt..."),
-          React.createElement("div",{style:{color:MID,fontSize:13,marginBottom:24}},"Hooks, Captions, Storytelling – alles auf deine Traumkundin zugeschnitten."),
+          React.createElement("div",{style:{color:MID,fontSize:13,marginBottom:24}},"Hooks, Captions, Storytelling – alles direkt aus deinen Eingaben entwickelt."),
           React.createElement("div",{style:{display:"flex",justifyContent:"center",gap:6}},
             [0,1,2].map(i=>React.createElement("div",{key:i,className:"dot",style:{animationDelay:i*.4+"s"}}))
           )
@@ -414,21 +591,50 @@ function App(){
           React.createElement("div",{style:{background:CARD,borderRadius:12,padding:"16px 20px",marginBottom:16,border:`1px solid ${BOR}`}},
             React.createElement("div",{style:{color:BLUE,fontSize:11,fontWeight:700,marginBottom:12,textTransform:"uppercase",letterSpacing:2}},"⬇️ Export"),
             React.createElement("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
-              React.createElement("button",{onClick:dlTxt,style:{...btn(YEL,DARK),fontSize:13,padding:"10px 18px"}},"📄 Als .txt herunterladen"),
-              React.createElement("button",{onClick:copy,style:{...btn("transparent",BLUE,`1px solid ${BLUE}`),fontSize:13,padding:"10px 18px"}},copied?"✓ Kopiert!":"📋 Kopieren")
+              React.createElement("button",{onClick:dlTxt,style:{...s_btn(YEL,DARK),fontSize:13,padding:"10px 18px"}},"📄 Als .txt laden"),
+              React.createElement("button",{onClick:copyAll,style:{...s_btn("transparent",BLUE,`1px solid ${BLUE}`),fontSize:13,padding:"10px 18px"}},copied?"✓ Kopiert!":"📋 Kopieren")
             )
           ),
           React.createElement("div",{style:{background:WHI,borderRadius:16,padding:"28px 24px",fontSize:13.5,lineHeight:1.85,border:`1px solid ${BOR}`}},
             React.createElement(Renderer,{text:result})
           ),
-          React.createElement("div",{style:{display:"flex",gap:10,marginTop:16}},
-            React.createElement("button",{onClick:generate,style:{...btn("transparent",BLUE,`1px solid ${BLUE}`),flex:1}},"🔄 Neu generieren"),
-            React.createElement("button",{onClick:()=>setView("generate"),style:{...btn("transparent",BLUE,`1px solid ${BLUE}`),flex:1}},"← Einstellungen")
+          React.createElement("div",{style:{display:"flex",gap:10,marginTop:16,flexWrap:"wrap"}},
+            React.createElement("button",{onClick:generate,style:{...s_btn("transparent",BLUE,`1px solid ${BLUE}`),flex:1}},"🔄 Neu"),
+            React.createElement("button",{onClick:()=>setView("generate"),style:{...s_btn("transparent",BLUE,`1px solid ${BLUE}`),flex:1}},"← Einstellungen")
           )
         )
       )
     ),
-    footer
+
+    // FOOTER
+    React.createElement("footer",{style:{background:BLUE,color:"rgba(255,255,255,.8)",padding:"32px 24px",marginTop:"auto"}},
+      React.createElement("div",{style:{maxWidth:820,margin:"0 auto"}},
+        React.createElement("div",{className:"footer-grid",style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:24,marginBottom:24}},
+          React.createElement("div",null,
+            React.createElement("img",{src:LOGO,style:{height:28,filter:"brightness(10)",marginBottom:12}}),
+            React.createElement("p",{style:{fontSize:12,lineHeight:1.7}},"Content to Cash Creator – KI-Tool für Leadership-Content nach dem 3x3 Content to Cash Code.")
+          ),
+          React.createElement("div",null,
+            React.createElement("div",{style:{fontWeight:700,marginBottom:10,color:WHI,fontSize:13}},"Kontakt"),
+            React.createElement("div",{style:{fontSize:12,lineHeight:2}},
+              React.createElement("div",null,"Brit Ortlepp"),
+              React.createElement("div",null,"Kaspar-Lang-Str. 25"),
+              React.createElement("div",null,"91334 Hemhofen"),
+              React.createElement("a",{href:"mailto:hallo@britortlepp.de",style:{color:YEL}},"hallo@britortlepp.de")
+            )
+          ),
+          React.createElement("div",null,
+            React.createElement("div",{style:{fontWeight:700,marginBottom:10,color:WHI,fontSize:13}},"Rechtliches"),
+            React.createElement("div",{style:{fontSize:12,lineHeight:2}},
+              React.createElement("a",{href:"https://britortlepp.de/impressum/",target:"_blank",style:{color:"rgba(255,255,255,.8)",display:"block"}},"Impressum"),
+              React.createElement("a",{href:"https://britortlepp.de/datenschutz/",target:"_blank",style:{color:"rgba(255,255,255,.8)",display:"block"}},"Datenschutz"),
+              React.createElement("a",{href:"https://britortlepp.de/agb/",target:"_blank",style:{color:"rgba(255,255,255,.8)",display:"block"}},"AGB")
+            )
+          )
+        ),
+        React.createElement("div",{style:{borderTop:"1px solid rgba(255,255,255,.2)",paddingTop:16,fontSize:11,textAlign:"center"}},"© 2025 Brit Ortlepp · Content to Cash Creator · Alle Rechte vorbehalten")
+      )
+    )
   );
 }
 
